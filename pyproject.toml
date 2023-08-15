@@ -1,0 +1,26 @@
+[project]
+name = "datasette-extract"
+version = "0.1"
+dependencies = [
+    "datasette",
+    "sqlite-utils",
+    "openai",
+]
+
+[project.urls]
+Homepage = "https://github.com/simonw/datasette-extract"
+Changelog = "https://github.com/simonw/datasette-extract/releases"
+Issues = "https://github.com/simonw/datasette-extract/issues"
+CI = "https://github.com/simonw/datasette-extract/actions"
+
+[project.entry-points.datasette]
+extract = "datasette_extract"
+
+[project.optional-dependencies]
+test = ["pytest", "pytest-asyncio"]
+
+[tool.setuptools.packages.find]
+where = ["."]
+
+[tool.setuptools.package-data]
+datasette_extract = ["static/*", "templates/*"]
