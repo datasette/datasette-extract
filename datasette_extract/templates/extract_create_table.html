@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+
+{% block title %}Extract data and create a new table{% endblock %}
+
+{% block extra_head %}
+<link type="text/css" rel="stylesheet" href="/-/static-plugins/datasette-extract/extract.css">
+{% endblock %}
+
+{% block content %}
+<h1>Extract data and create a new table in {{ database }}</h1>
+
+<form action="{{ request.path }}" method="POST">
+  <p>
+    <input type="hidden" name="csrftoken" value="{{ csrftoken() }}">
+    <label for="table">Table name:</label>
+    <input type="text" name="table" id="table" value="" placeholder="Enter a new table name">
+  </p>
+  {% for field in fields %}
+    <p>
+      <label>Name <input type="text" name="name_{{ field }}"></label>
+      <label>Type <select name="type_{{ field }}">
+        <option value="string">Text</option>
+        <option value="integer">Integer</option>
+        <option value="float">Float</option>
+        </select>
+      </label>
+      <label>Hint
+        <input type="text" name="hint_{{ field }}" value="" placeholder="Optional hint">
+      </label>
+    </p>
+  {% endfor %}
+  <p>
+    <textarea name="content" style="width: 100%; height: 20em;" placeholder="Paste content here"></textarea>
+  </p>
+  <p>
+    <input type="submit" value="Extract">
+  </p>
+</form>
+
+{% endblock %}

@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+
+{% block title %}Extract{% endblock %}
+
+{% block extra_head %}
+<link type="text/css" rel="stylesheet" href="/-/static-plugins/datasette-extract/extract.css">
+{% endblock %}
+
+{% block content %}
+<h1>Extract data into {{ database }} / {{ table }}</h1>
+
+<pre>
+{{ schema}}
+</pre>
+
+<form action="{{ request.path }}" method="POST">
+  <p>
+    <input type="hidden" name="csrftoken" value="{{ csrftoken() }}">
+    <textarea name="content" style="width: 100%; height: 20em;" placeholder="Paste content here"></textarea>
+  </p>
+  <p>
+    <input type="submit" value="Extract">
+  </p>
+</form>
+
+{% endblock %}
