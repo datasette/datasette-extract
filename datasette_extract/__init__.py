@@ -1,9 +1,11 @@
+import asyncio
 from datasette import hookimpl, Response, NotFound
 from openai import AsyncOpenAI, OpenAIError
 from sqlite_utils import Database
 import click
+import ijson
 import json
-import sys
+import ulid
 
 aclient = AsyncOpenAI()
 
@@ -103,47 +105,72 @@ async def extract_to_table_post(
         return Response.text("No content provided")
 
     required_fields = list(properties.keys())
+
+    events = ijson.sendable_list()
+    coro = ijson.items_coro(events, "items.item")
+    seen_events = set()
+    items = []
+
     try:
-        contents = []
         async for chunk in await aclient.chat.completions.create(
             stream=True,
             model="gpt-4-turbo-preview",
             messages=[{"role": "user", "content": content}],
-            functions=[
+            tools=[
                 {
-                    "name": "extract_data",
-                    "description": "Extract data matching this schema",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "items": {
-                                "type": "array",
+                    "type": "function",
+                    "function": {
+                        "name": "extract_data",
+                        "description": "Extract data matching this schema",
+                        "parameters": {
+                            "type": "object",
+                            "properties": {
                                 "items": {
-                                    "type": "object",
-                                    "properties": properties,
-                                    "required": required_fields,
-                                },
-                            }
+                                    "type": "array",
+                                    "items": {
+                                        "type": "object",
+                                        "properties": properties,
+                                        "required": required_fields,
+                                    },
+                                }
+                            },
+                            "required": ["items"],
                         },
-                        "required": ["items"],
                     },
                 },
             ],
-            function_call={"name": "extract_data"},
+            tool_choice={"type": "function", "function": {"name": "extract_data"}},
         ):
             try:
-                content = chunk.choices[0].delta.function_call.arguments
-                print(content, end="")
-                sys.stdout.flush()
-            except AttributeError:
+                content = chunk.choices[0].delta.tool_calls[0].function.arguments
+            except (AttributeError, TypeError):
                 content = None
-            if content is not None:
-                contents.append(content)
+            if content:
+                coro.send(content.encode("utf-8"))
+                if events:
+                    # Any we have not seen yet?
+                    unseen_events = [
+                        e for e in events if json.dumps(e) not in seen_events
+                    ]
+                    if unseen_events:
+                        for event in unseen_events:
+                            seen_events.add(json.dumps(event))
+                            items.append(event)
+                            print(json.dumps(event))
 
     except OpenAIError as ex:
         return Response.text(str(ex), status=400)
-    output = "".join(contents)
-    return Response.json(json.loads(output))
+
+    db = datasette.get_database(database)
+    print("database=", database)
+
+    def write(conn):
+        with conn:
+            db = Database(conn)
+            db[table].insert_all(items)
+
+    await db.execute_write_fn(write)
+    return Response.redirect(datasette.urls.table(database, table))
 
 
 @click.command()

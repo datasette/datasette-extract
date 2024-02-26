@@ -5,6 +5,7 @@ dependencies = [
     "datasette",
     "sqlite-utils",
     "openai>=1.0",
+    "ijson",
 ]
 
 [project.urls]
