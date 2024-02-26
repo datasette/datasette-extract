@@ -1,9 +1,11 @@
-import click
 from datasette import hookimpl, Response, NotFound
-import json
-import openai
+from openai import AsyncOpenAI, OpenAIError
 from sqlite_utils import Database
+import click
+import json
 import sys
+
+aclient = AsyncOpenAI()
 
 
 async def extract_create_table(datasette, request):
@@ -103,44 +105,40 @@ async def extract_to_table_post(
     required_fields = list(properties.keys())
     try:
         contents = []
-        async for chunk in await openai.ChatCompletion.acreate(
-            stream=True,
-            model="gpt-3.5-turbo",
-            messages=[{"role": "user", "content": content}],
-            functions=[
-                {
-                    "name": "extract_data",
-                    "description": "Extract data matching this schema",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
+        async for chunk in await aclient.chat.completions.create(stream=True,
+        model="gpt-4-turbo-preview",
+        messages=[{"role": "user", "content": content}],
+        functions=[
+            {
+                "name": "extract_data",
+                "description": "Extract data matching this schema",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "items": {
+                            "type": "array",
                             "items": {
-                                "type": "array",
-                                "items": {
-                                    "type": "object",
-                                    "properties": properties,
-                                    "required": required_fields,
-                                },
-                            }
-                        },
-                        "required": ["items"],
+                                "type": "object",
+                                "properties": properties,
+                                "required": required_fields,
+                            },
+                        }
                     },
+                    "required": ["items"],
                 },
-            ],
-            function_call={"name": "extract_data"},
-        ):
-            content = (
-                chunk["choices"][0]
-                .get("delta", {})
-                .get("function_call", {})
-                .get("arguments")
-            )
-            print(content, end="")
-            sys.stdout.flush()
+            },
+        ],
+        function_call={"name": "extract_data"}):
+            try:
+                content = chunk.choices[0].delta.function_call.arguments
+                print(content, end="")
+                sys.stdout.flush()
+            except AttributeError:
+                content = None
             if content is not None:
                 contents.append(content)
 
-    except openai.OpenAIError as ex:
+    except OpenAIError as ex:
         return Response.text(str(ex), status=400)
     output = "".join(contents)
     return Response.json(json.loads(output))
