@@ -7,8 +7,6 @@ import ijson
 import json
 import ulid
 
-aclient = AsyncOpenAI()
-
 
 async def extract_create_table(datasette, request):
     database = request.url_vars["database"]
@@ -110,6 +108,8 @@ async def extract_to_table_post(
     coro = ijson.items_coro(events, "items.item")
     seen_events = set()
     items = []
+
+    aclient = AsyncOpenAI()
 
     try:
         async for chunk in await aclient.chat.completions.create(
