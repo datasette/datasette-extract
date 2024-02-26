@@ -105,30 +105,32 @@ async def extract_to_table_post(
     required_fields = list(properties.keys())
     try:
         contents = []
-        async for chunk in await aclient.chat.completions.create(stream=True,
-        model="gpt-4-turbo-preview",
-        messages=[{"role": "user", "content": content}],
-        functions=[
-            {
-                "name": "extract_data",
-                "description": "Extract data matching this schema",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "items": {
-                            "type": "array",
+        async for chunk in await aclient.chat.completions.create(
+            stream=True,
+            model="gpt-4-turbo-preview",
+            messages=[{"role": "user", "content": content}],
+            functions=[
+                {
+                    "name": "extract_data",
+                    "description": "Extract data matching this schema",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
                             "items": {
-                                "type": "object",
-                                "properties": properties,
-                                "required": required_fields,
-                            },
-                        }
+                                "type": "array",
+                                "items": {
+                                    "type": "object",
+                                    "properties": properties,
+                                    "required": required_fields,
+                                },
+                            }
+                        },
+                        "required": ["items"],
                     },
-                    "required": ["items"],
                 },
-            },
-        ],
-        function_call={"name": "extract_data"}):
+            ],
+            function_call={"name": "extract_data"},
+        ):
             try:
                 content = chunk.choices[0].delta.function_call.arguments
                 print(content, end="")
