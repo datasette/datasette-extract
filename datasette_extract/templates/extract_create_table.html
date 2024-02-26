@@ -9,7 +9,7 @@
 {% block content %}
 <h1>Extract data and create a new table in {{ database }}</h1>
 
-<form action="{{ request.path }}" method="POST">
+<form action="{{ request.path }}" method="POST" class="extract-form">
   <p>
     <input type="hidden" name="csrftoken" value="{{ csrftoken() }}">
     <label for="table">Table name:</label>

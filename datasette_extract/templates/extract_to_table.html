@@ -13,7 +13,7 @@
 {{ schema}}
 </pre>
 
-<form action="{{ request.path }}" method="POST">
+<form action="{{ request.path }}" method="POST" class="extract-form">
   <p>
     <input type="hidden" name="csrftoken" value="{{ csrftoken() }}">
     <textarea name="content" style="width: 100%; height: 20em;" placeholder="Paste content here"></textarea>
