@@ -190,16 +190,10 @@ def register_commands(cli):
 
 
 @hookimpl
-def startup():
-    # TODO: Create tables etc, maybe using sqlite-migrate
-    pass
-
-
-@hookimpl
 def register_routes():
     return [
-        (r"^/-/extract/(?P<database>[^/]+)$", extract_create_table),
-        (r"^/-/extract/(?P<database>[^/]+)/(?P<table>[^/]+)$", extract_to_table),
+        (r"^/(?P<database>[^/]+)/-/extract$", extract_create_table),
+        (r"^/(?P<database>[^/]+)/(?P<table>[^/]+)/-/extract$", extract_to_table),
     ]
 
 
@@ -210,3 +204,38 @@ def get_type(type_):
         return "number"
     else:
         return "string"
+
+
+async def can_use_extract(datasette, actor, database, table=None):
+    # TODO: Add proper permissions checks
+    return True
+
+
+@hookimpl
+def database_actions(datasette, actor, database):
+    async def inner():
+        if not await can_use_extract(datasette, actor, database):
+            return []
+        return [
+            {
+                "href": datasette.urls.database(database) + "/-/extract",
+                "label": "Create table with extracted data",
+            }
+        ]
+
+    return inner
+
+
+@hookimpl
+def table_actions(datasette, actor, database, table):
+    async def inner():
+        if not await can_use_extract(datasette, actor, database, table):
+            return []
+        return [
+            {
+                "href": datasette.urls.table(database, table) + "/-/extract",
+                "label": "Extract data into this table",
+            }
+        ]
+
+    return inner
