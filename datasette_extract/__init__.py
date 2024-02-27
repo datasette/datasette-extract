@@ -8,6 +8,22 @@ import json
 import ulid
 
 
+CREATE_JOB_TABLE_SQL = """
+create table if not exists _extract_jobs (
+    id integer primary key,
+    database_name text,
+    table_name text,
+    content text,
+    custom_prompt text, -- for custom system prompt
+    properties text, -- JSON function properties definition
+    started_at text, -- ISO8601 when added
+    finished_at text, -- ISO8601 when completed or cancelled
+    row_count integer, -- starts at 0
+    error text
+);
+"""
+
+
 async def extract_create_table(datasette, request):
     database = request.url_vars["database"]
     try:
@@ -95,24 +111,37 @@ async def extract_to_table(datasette, request):
     )
 
 
-async def extract_to_table_post(
-    datasette, request, content, database, table, properties
-):
-    # Here we go!
-    if not content:
-        return Response.text("No content provided")
-
-    required_fields = list(properties.keys())
-
+async def extract_table_task(datasette, database, table, properties, content, task_id):
+    # This task runs in the background
     events = ijson.sendable_list()
     coro = ijson.items_coro(events, "items.item")
     seen_events = set()
     items = []
 
-    aclient = AsyncOpenAI()
+    datasette._extract_tasks = getattr(datasette, "_extract_tasks", None) or {}
+    task_info = {
+        "items": items,
+        "database": database,
+        "table": table,
+        "properties": properties,
+        "error": None,
+        "done": False,
+    }
+    datasette._extract_tasks[task_id] = task_info
+
+    async_client = AsyncOpenAI()
+    db = datasette.get_database(database)
+
+    def make_row_writer(row):
+        def _write(conn):
+            with conn:
+                db = Database(conn)
+                db[table].insert(row)
+
+        return _write
 
     try:
-        async for chunk in await aclient.chat.completions.create(
+        async for chunk in await async_client.chat.completions.create(
             stream=True,
             model="gpt-4-turbo-preview",
             messages=[{"role": "user", "content": content}],
@@ -130,7 +159,7 @@ async def extract_to_table_post(
                                     "items": {
                                         "type": "object",
                                         "properties": properties,
-                                        "required": required_fields,
+                                        "required": list(properties.keys()),
                                     },
                                 }
                             },
@@ -156,21 +185,59 @@ async def extract_to_table_post(
                         for event in unseen_events:
                             seen_events.add(json.dumps(event))
                             items.append(event)
-                            print(json.dumps(event))
+                            await db.execute_write_fn(make_row_writer(event))
 
     except OpenAIError as ex:
-        return Response.text(str(ex), status=400)
+        task_info["error"] = str(ex)
+        return
+    finally:
+        task_info["done"] = True
 
-    db = datasette.get_database(database)
-    print("database=", database)
 
-    def write(conn):
-        with conn:
-            db = Database(conn)
-            db[table].insert_all(items)
+async def extract_to_table_post(
+    datasette, request, content, database, table, properties
+):
+    # Here we go!
+    if not content:
+        return Response.text("No content provided")
 
-    await db.execute_write_fn(write)
-    return Response.redirect(datasette.urls.table(database, table))
+    task_id = str(ulid.ULID())
+    asyncio.create_task(
+        extract_table_task(datasette, database, table, properties, content, task_id)
+    )
+    return Response.redirect(
+        datasette.urls.path("/-/extract/progress/{}".format(task_id))
+    )
+
+
+def get_task_info(datasette, task_id):
+    extract_tasks = getattr(datasette, "_extract_tasks", None) or {}
+    return extract_tasks.get(task_id)
+
+
+async def extract_progress(datasette, request):
+    task_info = get_task_info(datasette, request.url_vars["task_id"])
+    if not task_info:
+        return Response.text("Task not found", status=404)
+    return Response.html(
+        await datasette.render_template(
+            "extract_progress.html",
+            {
+                "task": task_info,
+                "table_url": datasette.urls.table(
+                    task_info["database"], task_info["table"]
+                ),
+            },
+            request=request,
+        )
+    )
+
+
+async def extract_progress_json(datasette, request):
+    task_info = get_task_info(datasette, request.url_vars["task_id"])
+    if not task_info:
+        return Response.json({"ok": False, "error": "Task not found"}, status=404)
+    return Response.json(task_info)
 
 
 @click.command()
@@ -194,6 +261,8 @@ def register_routes():
     return [
         (r"^/(?P<database>[^/]+)/-/extract$", extract_create_table),
         (r"^/(?P<database>[^/]+)/(?P<table>[^/]+)/-/extract$", extract_to_table),
+        (r"^/-/extract/progress/(?P<task_id>\w+)$", extract_progress),
+        (r"^/-/extract/progress/(?P<task_id>\w+)\.json$", extract_progress_json),
     ]
 
 
