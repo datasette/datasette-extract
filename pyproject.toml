@@ -10,10 +10,10 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/simonw/datasette-extract"
-Changelog = "https://github.com/simonw/datasette-extract/releases"
-Issues = "https://github.com/simonw/datasette-extract/issues"
-CI = "https://github.com/simonw/datasette-extract/actions"
+Homepage = "https://github.com/datasette/datasette-extract"
+Changelog = "https://github.com/datasette/datasette-extract/releases"
+Issues = "https://github.com/datasette/datasette-extract/issues"
+CI = "https://github.com/datasette/datasette-extract/actions"
 
 [project.entry-points.datasette]
 extract = "datasette_extract"
