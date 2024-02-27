@@ -6,6 +6,7 @@ dependencies = [
     "sqlite-utils",
     "openai>=1.0",
     "ijson",
+    "ulid",
 ]
 
 [project.urls]
