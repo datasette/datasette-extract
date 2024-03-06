@@ -1,5 +1,6 @@
 import asyncio
 from datasette import hookimpl, Response, NotFound
+from datetime import datetime, timezone
 from openai import AsyncOpenAI, OpenAIError
 from sqlite_utils import Database
 import click
@@ -129,8 +130,29 @@ async def extract_table_task(datasette, database, table, properties, content, ta
     }
     datasette._extract_tasks[task_id] = task_info
 
+    # We record tasks to the _datasette_extract table, mainly so we can reuse
+    # property definitions later on
+    def start_write(conn):
+        with conn:
+            db = Database(conn)
+            db["_datasette_extract"].insert(
+                {
+                    "id": task_id,
+                    "database_name": database,
+                    "table_name": table,
+                    "created": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"),
+                    "properties": json.dumps(properties),
+                    "completed": None,
+                    "error": None,
+                    "num_items": 0,
+                },
+                pk="id",
+            )
+
     async_client = AsyncOpenAI()
     db = datasette.get_database(database)
+
+    await db.execute_write_fn(start_write)
 
     def make_row_writer(row):
         def _write(conn):
@@ -139,6 +161,8 @@ async def extract_table_task(datasette, database, table, properties, content, ta
                 db[table].insert(row)
 
         return _write
+
+    error = None
 
     try:
         async for chunk in await async_client.chat.completions.create(
@@ -189,9 +213,25 @@ async def extract_table_task(datasette, database, table, properties, content, ta
 
     except OpenAIError as ex:
         task_info["error"] = str(ex)
-        return
+        error = str(ex)
     finally:
         task_info["done"] = True
+
+        def end_write(conn):
+            with conn:
+                db = Database(conn)
+                db["_datasette_extract"].update(
+                    task_id,
+                    {
+                        "completed": datetime.now(timezone.utc).strftime(
+                            "%Y-%m-%d %H:%M:%S"
+                        ),
+                        "num_items": len(items),
+                        "error": error,
+                    },
+                )
+
+        await db.execute_write_fn(end_write)
 
 
 async def extract_to_table_post(
