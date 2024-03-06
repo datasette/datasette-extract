@@ -1,8 +1,10 @@
 import asyncio
+import base64
 from datasette import hookimpl, Response, NotFound
 from datetime import datetime, timezone
 from openai import AsyncOpenAI, OpenAIError
 from sqlite_utils import Database
+from starlette.requests import Request as StarletteRequest
 import click
 import ijson
 import json
@@ -25,7 +27,7 @@ create table if not exists _extract_jobs (
 """
 
 
-async def extract_create_table(datasette, request):
+async def extract_create_table(datasette, request, scope, receive):
     database = request.url_vars["database"]
     try:
         db = datasette.get_database(database)
@@ -33,7 +35,8 @@ async def extract_create_table(datasette, request):
         raise NotFound("Database '{}' does not exist".format(database))
 
     if request.method == "POST":
-        post_vars = await request.post_vars()
+        starlette_request = StarletteRequest(scope, receive)
+        post_vars = await starlette_request.form()
         content = (post_vars.get("content") or "").strip()
         if not content:
             return Response.text("No content provided", status=400)
@@ -54,8 +57,10 @@ async def extract_create_table(datasette, request):
                 if hint:
                     properties[value]["description"] = hint
 
+        image = post_vars["image"]
+
         return await extract_to_table_post(
-            datasette, request, content, database, table, properties
+            datasette, request, content, image, database, table, properties
         )
 
     return Response.html(
@@ -70,7 +75,7 @@ async def extract_create_table(datasette, request):
     )
 
 
-async def extract_to_table(datasette, request):
+async def extract_to_table(datasette, request, scope, receive):
     database = request.url_vars["database"]
     table = request.url_vars["table"]
     # Do they exist?
@@ -85,6 +90,8 @@ async def extract_to_table(datasette, request):
     schema = await db.execute_fn(lambda conn: Database(conn)[table].columns_dict)
 
     if request.method == "POST":
+        starlette_request = StarletteRequest(scope, receive)
+        post_vars = await starlette_request.form()
         # Turn schema into a properties dict
         properties = {
             name: {
@@ -93,10 +100,10 @@ async def extract_to_table(datasette, request):
             }
             for name, type_ in schema.items()
         }
-        post_vars = await request.post_vars()
+        image = post_vars["image"]
         content = (post_vars.get("content") or "").strip()
         return await extract_to_table_post(
-            datasette, request, content, database, table, properties
+            datasette, request, content, image, database, table, properties
         )
 
     return Response.html(
@@ -112,7 +119,9 @@ async def extract_to_table(datasette, request):
     )
 
 
-async def extract_table_task(datasette, database, table, properties, content, task_id):
+async def extract_table_task(
+    datasette, database, table, properties, content, image, task_id
+):
     # This task runs in the background
     events = ijson.sendable_list()
     coro = ijson.items_coro(events, "items.item")
@@ -164,11 +173,43 @@ async def extract_table_task(datasette, database, table, properties, content, ta
 
     error = None
 
+    async def ocr_image(image_bytes):
+        base64_image = base64.b64encode(image_bytes).decode("utf-8")
+        messages = [
+            {"role": "system", "content": "Run OCR and return all of the text in this image, with newlines where appropriate"},
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "image_url",
+                        "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"},
+                    }
+                ],
+            }
+        ]
+        response = await async_client.chat.completions.create(
+            model="gpt-4-vision-preview",
+            messages=messages,
+            max_tokens=400
+        )
+        return response.choices[0].message.content
+
     try:
+        messages = []
+        if content:
+            messages.append({"role": "user", "content": content})
+        if image:
+            # Run a separate thing to OCR the image first, because gpt-4-vision can't handle tools yet
+            image_content = await ocr_image(await image.read())
+            if image_content:
+                messages.append({"role": "user", "content": image_content})
+            else:
+                raise ValueError("Could not extract text from image")
+
         async for chunk in await async_client.chat.completions.create(
             stream=True,
             model="gpt-4-turbo-preview",
-            messages=[{"role": "user", "content": content}],
+            messages=messages,
             tools=[
                 {
                     "type": "function",
@@ -211,7 +252,7 @@ async def extract_table_task(datasette, database, table, properties, content, ta
                             items.append(event)
                             await db.execute_write_fn(make_row_writer(event))
 
-    except OpenAIError as ex:
+    except (OpenAIError, ValueError) as ex:
         task_info["error"] = str(ex)
         error = str(ex)
     finally:
@@ -235,15 +276,17 @@ async def extract_table_task(datasette, database, table, properties, content, ta
 
 
 async def extract_to_table_post(
-    datasette, request, content, database, table, properties
+    datasette, request, content, image, database, table, properties
 ):
     # Here we go!
-    if not content:
+    if not content and not image:
         return Response.text("No content provided")
 
     task_id = str(ulid.ULID())
     asyncio.create_task(
-        extract_table_task(datasette, database, table, properties, content, task_id)
+        extract_table_task(
+            datasette, database, table, properties, content, image, task_id
+        )
     )
     return Response.redirect(
         datasette.urls.path("/-/extract/progress/{}".format(task_id))
