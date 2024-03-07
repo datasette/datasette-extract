@@ -26,6 +26,10 @@ async def test_extract_flow():
             "name_1": "age",
             "type_1": "integer",
         },
+        files={
+            # Send an empty image too
+            "image": b""
+        },
         cookies=cookies,
     )
     assert post_response.status_code == 302

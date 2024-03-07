@@ -67,6 +67,11 @@ async def can_extract(datasette, actor, database_name, to_table=None):
         )
 
 
+def image_is_provided(image):
+    # UploadFile(filename='', size=0, headers=Headers...
+    return bool(image.size)
+
+
 async def extract_create_table(datasette, request, scope, receive):
     database = request.url_vars["database"]
     try:
@@ -82,7 +87,7 @@ async def extract_create_table(datasette, request, scope, receive):
         post_vars = await starlette_request.form()
         content = (post_vars.get("content") or "").strip()
         image = post_vars.get("image") or ""
-        if not content and not image:
+        if not content and not image_is_provided(image):
             return Response.text("No content provided", status=400)
         table = post_vars.get("table")
         if not table:
@@ -295,7 +300,7 @@ async def extract_table_task(
         messages = []
         if content:
             messages.append({"role": "user", "content": content})
-        if image:
+        if image_is_provided(image):
             # Run a separate thing to OCR the image first, because gpt-4-vision can't handle tools yet
             image_content = await ocr_image(await image.read())
             if image_content:
@@ -377,7 +382,7 @@ async def extract_to_table_post(
     datasette, request, content, image, database, table, properties
 ):
     # Here we go!
-    if not content and not image:
+    if not content and not image_is_provided(image):
         return Response.text("No content provided")
 
     task_id = str(ulid.ULID())
