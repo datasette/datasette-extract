@@ -35,6 +35,14 @@ Drag and drop a PDF or text file onto the textarea to populate it with the conte
 
 Images can be uploaded directly. These will have OCR run against them using GPT-4 Vision and then that text will be used for structured data extraction.
 
+## Permissions
+
+Users must have the `datasette-extract` permission to use this tool.
+
+In order to create tables they also need the `create-table` permission.
+
+To insert rows into an existing table they need `insert-row`.
+
 ## Development
 
 To set up this plugin locally, first checkout the code. Then create a new virtual environment:

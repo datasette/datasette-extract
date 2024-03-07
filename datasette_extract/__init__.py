@@ -1,6 +1,6 @@
 import asyncio
 import base64
-from datasette import hookimpl, Response, NotFound
+from datasette import hookimpl, Response, NotFound, Permission, Forbidden
 from datetime import datetime, timezone
 from openai import AsyncOpenAI, OpenAIError
 from sqlite_utils import Database
@@ -26,12 +26,56 @@ create table if not exists _extract_jobs (
 """
 
 
+@hookimpl
+def register_permissions(datasette):
+    return [
+        Permission(
+            name="datasette-extract",
+            abbr=None,
+            description="Use the extract tool to populate tables",
+            takes_database=False,
+            takes_resource=False,
+            default=False,
+        )
+    ]
+
+
+@hookimpl
+def permission_allowed(action, actor):
+    if action == "datasette-extract" and actor and actor.get("id") == "root":
+        return True
+
+
+async def can_extract(datasette, actor, database_name, to_table=None):
+    if actor is None:
+        return False
+    reply_from_that = await datasette.permission_allowed(actor, "datasette-extract")
+    if not reply_from_that:
+        return False
+    if not to_table:
+        # Need create-table for database
+        can_create_table = await datasette.permission_allowed(
+            actor, "create-table", resource=database_name
+        )
+        if not can_create_table:
+            return False
+        return True
+    else:
+        # Need insert-row for that table
+        return await datasette.permission_allowed(
+            actor, "insert-row", resource=(database_name, to_table)
+        )
+
+
 async def extract_create_table(datasette, request, scope, receive):
     database = request.url_vars["database"]
     try:
         db = datasette.get_database(database)
     except KeyError:
         raise NotFound("Database '{}' does not exist".format(database))
+
+    if not await can_extract(datasette, request.actor, database):
+        raise Forbidden("Permission denied to extract data")
 
     if request.method == "POST":
         starlette_request = StarletteRequest(scope, receive)
@@ -81,6 +125,10 @@ async def extract_to_table(datasette, request, scope, receive):
         db = datasette.get_database(database)
     except KeyError:
         raise NotFound("Database '{}' does not exist".format(database))
+
+    if not await can_extract(datasette, request.actor, database, table):
+        raise Forbidden("Permission denied to extract data")
+
     tables = await db.table_names()
     if table not in tables:
         raise NotFound("Table '{}' does not exist".format(table))
