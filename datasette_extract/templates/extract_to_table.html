@@ -9,19 +9,67 @@
 {% block content %}
 <h1>Extract data into {{ database }} / {{ table }}</h1>
 
-<pre>
-{{ schema}}
-</pre>
+<style>
+table.formgrid td {
+  white-space: normal;
+  padding: 0.2em;
+}
+table.formgrid td.checkbox {
+  vertical-align: middle;
+}
+</style>
 
 <form action="{{ request.path }}" method="POST" class="extract-form" enctype="multipart/form-data">
+  <p>Select columns to populate with extracted data:</p>
+  <table class="formgrid">
+  {% for column in columns %}
+    <tr>
+      <td class="checkbox">
+        <input type="checkbox"{% if column.checked %} checked="checked"{% endif %} name="use_{{ column.name }}" id="use_{{ column.name }}">
+      </td>
+      <td>
+        <label for="use_{{ column.name }}">{{ column.name }}</label>
+      </td>
+      <td>
+        <input size="40" type="text" name="hint_{{ column.name }}" value="{{ column.hint }}" placeholder="Optional hint">
+      </td>
+  {% endfor %}
+    </table>
+  <p><label for="id_content">Paste data here, or drag and drop text or PDF files:</label>
+    <input type="hidden" name="csrftoken" value="{{ csrftoken() }}"></p>
   <p>
-    <input type="hidden" name="csrftoken" value="{{ csrftoken() }}">
-    <textarea name="content" style="width: 100%; height: 20em;" placeholder="Paste content here"></textarea>
+    <textarea name="content" id="id_content" style="width: 100%; height: 20em;" placeholder="Paste content here"></textarea>
   </p>
-  <p>Or upload an image: <input type="file" name="image"></p>
+  <p><label>Or upload an image: <input type="file" id="id_image" name="image"></label></p>
   <p>
     <input type="submit" value="Extract">
   </p>
 </form>
+
+{% include "_extract_pdf_drop.html" %}
+
+{% if previous_runs %}
+<h2>Previous extraction tasks</h2>
+<table>
+  <tr>
+    <th>ID</th>
+    <th>created</th>
+    <th>completed</th>
+    <th>properties</th>
+    <th>error</th>
+    <th>num_items</th>
+  </tr>
+  {% for run in previous_runs %}
+  <tr>
+    <td>{{ run.id }}</td>
+    <td>{{ run.created }}</td>
+    <td>{{ run.completed or "" }}</td>
+    <td>{{ run.properties }}</td>
+    <td>{{ run.error or "" }}</td>
+    <td>{{ run.num_items }}</td>
+  </tr>
+  {% endfor %}
+</table>
+{% endif %}
 
 {% endblock %}

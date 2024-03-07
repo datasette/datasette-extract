@@ -92,19 +92,66 @@ async def extract_to_table(datasette, request, scope, receive):
     if request.method == "POST":
         starlette_request = StarletteRequest(scope, receive)
         post_vars = await starlette_request.form()
-        # Turn schema into a properties dict
-        properties = {
-            name: {
-                "type": get_type(type_),
-                # "description": "..."
-            }
-            for name, type_ in schema.items()
+
+        # We only use columns that have their use_{colname} set
+        use_columns = [
+            key[len("use_") :]
+            for key, value in post_vars.items()
+            if key.startswith("use_") and value
+        ]
+
+        # Grab all of the hints
+        column_hints = {
+            key[len("hint_") :]: value.strip()
+            for key, value in post_vars.items()
+            if key.startswith("hint_") and value.strip()
         }
+        # Turn schema into a properties dict
+        properties = {}
+        for name, type_ in schema.items():
+            if name in use_columns:
+                properties[name] = {"type": get_type(type_)}
+                description = column_hints.get(name) or ""
+                if description:
+                    properties[name]["description"] = description
+
         image = post_vars["image"]
         content = (post_vars.get("content") or "").strip()
         return await extract_to_table_post(
             datasette, request, content, image, database, table, properties
         )
+
+    # Restore properties from previous run, if possible
+    previous_runs = [
+        dict(row)
+        for row in (
+            await db.execute(
+                """
+        select id, database_name, table_name, created, properties, completed, error, num_items
+        from _datasette_extract
+        where database_name = :database_name and table_name = :table_name
+        order by id desc limit 20
+    """,
+                {"database_name": database, "table_name": table},
+            )
+        ).rows
+    ]
+
+    columns = [
+        {"name": name, "type": value, "hint": "", "checked": True}
+        for name, value in schema.items()
+    ]
+
+    # If there are previous runs, use the properties from the last one to update columns
+    if previous_runs:
+        properties = json.loads(previous_runs[0]["properties"])
+        print(properties)
+        for column in columns:
+            column_name = column["name"]
+            column["checked"] = column_name in properties
+            column["hint"] = (properties.get(column_name) or {}).get(
+                "description"
+            ) or ""
 
     return Response.html(
         await datasette.render_template(
@@ -113,6 +160,8 @@ async def extract_to_table(datasette, request, scope, receive):
                 "database": database,
                 "table": table,
                 "schema": schema,
+                "columns": columns,
+                "previous_runs": previous_runs,
             },
             request=request,
         )
@@ -176,7 +225,10 @@ async def extract_table_task(
     async def ocr_image(image_bytes):
         base64_image = base64.b64encode(image_bytes).decode("utf-8")
         messages = [
-            {"role": "system", "content": "Run OCR and return all of the text in this image, with newlines where appropriate"},
+            {
+                "role": "system",
+                "content": "Run OCR and return all of the text in this image, with newlines where appropriate",
+            },
             {
                 "role": "user",
                 "content": [
@@ -185,12 +237,10 @@ async def extract_table_task(
                         "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"},
                     }
                 ],
-            }
+            },
         ]
         response = await async_client.chat.completions.create(
-            model="gpt-4-vision-preview",
-            messages=messages,
-            max_tokens=400
+            model="gpt-4-vision-preview", messages=messages, max_tokens=400
         )
         return response.choices[0].message.content
 
@@ -252,7 +302,7 @@ async def extract_table_task(
                             items.append(event)
                             await db.execute_write_fn(make_row_writer(event))
 
-    except (OpenAIError, ValueError) as ex:
+    except Exception as ex:
         task_info["error"] = str(ex)
         error = str(ex)
     finally:
