@@ -441,15 +441,10 @@ def get_type(type_):
         return "string"
 
 
-async def can_use_extract(datasette, actor, database, table=None):
-    # TODO: Add proper permissions checks
-    return True
-
-
 @hookimpl
 def database_actions(datasette, actor, database):
     async def inner():
-        if not await can_use_extract(datasette, actor, database):
+        if not await can_extract(datasette, actor, database):
             return []
         return [
             {
@@ -464,7 +459,7 @@ def database_actions(datasette, actor, database):
 @hookimpl
 def table_actions(datasette, actor, database, table):
     async def inner():
-        if not await can_use_extract(datasette, actor, database, table):
+        if not await can_extract(datasette, actor, database, table):
             return []
         return [
             {

@@ -49,3 +49,15 @@ async def test_permissions(actor, path, should_allow):
         assert response.status_code == 200
     else:
         assert response.status_code == 403
+
+    # Also check if the action items were visible
+    if path == "/test/-/extract":
+        fetch_path = "/test"
+    else:
+        fetch_path = "/test/foo"
+    html = (await ds.client.get(fetch_path, cookies=cookies)).text
+    fragment = f'<a href="{path}"'
+    if should_allow:
+        assert fragment in html
+    else:
+        assert fragment not in html
