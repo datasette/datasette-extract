@@ -46,6 +46,42 @@ table.formgrid td.checkbox {
   </p>
 </form>
 
+<details>
+  <summary>Use this section to handle Apple HEIC images</summary>
+  <p style="padding-top: 0.5em">
+  <label style="font-weight: bold; padding-right: 1em;">HEIC image file
+    <input type="file" id="heicInput" accept=".heic" style="font-sive: 10em">
+  </label>
+  </p>
+  <img id="jpegOutput" alt="Converted JPEG" style="max-width: 100%; display: none;">
+</details>
+
+<script type="module">
+const heicInput = document.getElementById("heicInput");
+const jpegOutput = document.getElementById("jpegOutput");
+
+heicInput.addEventListener("change", async (event) => {
+    const heic2any = (await import('{{ urls.static_plugins("datasette_extract", "heic2any-0.0.4.min.js") }}')).default;
+    const file = event.target.files[0];
+    if (file) {
+        try {
+            const blob = await heic2any({
+                blob: file,
+                toType: "image/jpeg",
+                quality: 0.8
+            });
+            jpegOutput.src = URL.createObjectURL(blob);
+            jpegOutput.style.display = "block";
+            const jpegFile = new File([blob], "converted-from-heic.jpeg", { type: "image/jpeg" });
+            const dataTransfer = new DataTransfer();
+            dataTransfer.items.add(jpegFile);
+            document.querySelector('#id_image').files = dataTransfer.files;
+        } catch (error) {
+            console.error("Conversion error:", error);
+        }
+    }
+});
+</script>
 {% include "_extract_pdf_drop.html" %}
 
 {% if previous_runs %}
