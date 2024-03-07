@@ -285,7 +285,7 @@ async def extract_table_task(
                 },
             ],
             tool_choice={"type": "function", "function": {"name": "extract_data"}},
-            max_tokens=4096
+            max_tokens=4096,
         ):
             try:
                 content = chunk.choices[0].delta.tool_calls[0].function.arguments
