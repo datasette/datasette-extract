@@ -122,20 +122,22 @@ async def extract_to_table(datasette, request, scope, receive):
         )
 
     # Restore properties from previous run, if possible
-    previous_runs = [
-        dict(row)
-        for row in (
-            await db.execute(
-                """
-        select id, database_name, table_name, created, properties, completed, error, num_items
-        from _datasette_extract
-        where database_name = :database_name and table_name = :table_name
-        order by id desc limit 20
-    """,
-                {"database_name": database, "table_name": table},
-            )
-        ).rows
-    ]
+    previous_runs = []
+    if await db.table_exists("_datasette_extract"):
+        previous_runs = [
+            dict(row)
+            for row in (
+                await db.execute(
+                    """
+            select id, database_name, table_name, created, properties, completed, error, num_items
+            from _datasette_extract
+            where database_name = :database_name and table_name = :table_name
+            order by id desc limit 20
+        """,
+                    {"database_name": database, "table_name": table},
+                )
+            ).rows
+        ]
 
     columns = [
         {"name": name, "type": value, "hint": "", "checked": True}
