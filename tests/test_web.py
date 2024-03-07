@@ -1,16 +1,58 @@
+import asyncio
 from datasette.app import Datasette
 import pytest
 
 
+@pytest.mark.vcr(ignore_localhost=True)
 @pytest.mark.asyncio
-async def test_extract_web():
+async def test_extract_flow():
     ds = Datasette()
     ds.add_memory_database("data")
-    response = await ds.client.get(
-        "/data/-/extract", cookies={"ds_actor": ds.client.actor_cookie({"id": "root"})}
-    )
+    cookies = {"ds_actor": ds.client.actor_cookie({"id": "root"})}
+    response = await ds.client.get("/data/-/extract", cookies=cookies)
     assert response.status_code == 200
     assert "<h1>Extract data and create a new table in data</h1>" in response.text
+    csrftoken = response.cookies["ds_csrftoken"]
+    cookies["ds_csrftoken"] = csrftoken
+    # Now submit a POST, then wait 30s
+    post_response = await ds.client.post(
+        "/data/-/extract",
+        data={
+            "table": "ages",
+            "content": "Sergei is 4, Cynthia is 7",
+            "csrftoken": csrftoken,
+            "name_0": "name",
+            "type_0": "string",
+            "name_1": "age",
+            "type_1": "integer",
+        },
+        cookies=cookies,
+    )
+    assert post_response.status_code == 302
+    redirect_url = post_response.headers["location"]
+    assert redirect_url.startswith("/-/extract/progress/")
+    task_id = redirect_url.split("/")[-1]
+    poll_url = redirect_url + ".json"
+    # Wait a moment for ds._extract_tasks to be populated
+    await asyncio.sleep(0.5)
+    assert task_id in ds._extract_tasks
+    # Now we poll for completion
+    data = None
+    while True:
+        poll_response = await ds.client.get(poll_url)
+        data = poll_response.json()
+        if data["done"]:
+            break
+        await asyncio.sleep(1)
+
+    assert data == {
+        "items": [{"name": "Sergei", "age": 4}, {"name": "Cynthia", "age": 7}],
+        "database": "data",
+        "table": "ages",
+        "properties": {"name": {"type": "string"}, "age": {"type": "integer"}},
+        "error": None,
+        "done": True,
+    }
 
 
 @pytest.mark.asyncio
