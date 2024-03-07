@@ -37,7 +37,8 @@ async def extract_create_table(datasette, request, scope, receive):
         starlette_request = StarletteRequest(scope, receive)
         post_vars = await starlette_request.form()
         content = (post_vars.get("content") or "").strip()
-        if not content:
+        image = post_vars.get("image") or ""
+        if not content and not image:
             return Response.text("No content provided", status=400)
         table = post_vars.get("table")
         if not table:
@@ -55,8 +56,6 @@ async def extract_create_table(datasette, request, scope, receive):
                 }
                 if hint:
                     properties[value]["description"] = hint
-
-        image = post_vars.get("image") or ""
 
         return await extract_to_table_post(
             datasette, request, content, image, database, table, properties
@@ -146,7 +145,6 @@ async def extract_to_table(datasette, request, scope, receive):
     # If there are previous runs, use the properties from the last one to update columns
     if previous_runs:
         properties = json.loads(previous_runs[0]["properties"])
-        print(properties)
         for column in columns:
             column_name = column["name"]
             column["checked"] = column_name in properties
@@ -335,6 +333,7 @@ async def extract_to_table_post(
         return Response.text("No content provided")
 
     task_id = str(ulid.ULID())
+
     asyncio.create_task(
         extract_table_task(
             datasette, database, table, properties, content, image, task_id
