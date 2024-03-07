@@ -5,7 +5,6 @@ from datetime import datetime, timezone
 from openai import AsyncOpenAI, OpenAIError
 from sqlite_utils import Database
 from starlette.requests import Request as StarletteRequest
-import click
 import ijson
 import json
 import ulid
@@ -374,22 +373,6 @@ async def extract_progress_json(datasette, request):
     if not task_info:
         return Response.json({"ok": False, "error": "Task not found"}, status=404)
     return Response.json(task_info)
-
-
-@click.command()
-@click.argument(
-    "database",
-    type=click.Path(file_okay=True, dir_okay=False, allow_dash=False),
-    required=True,
-)
-@click.argument("table", required=True)
-def extract(database, table):
-    click.echo("Will extract to {} in {}".format(table, database))
-
-
-@hookimpl
-def register_commands(cli):
-    cli.add_command(extract, name="extract")
 
 
 @hookimpl
