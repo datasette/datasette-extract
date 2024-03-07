@@ -57,7 +57,7 @@ async def extract_create_table(datasette, request, scope, receive):
                 if hint:
                     properties[value]["description"] = hint
 
-        image = post_vars["image"]
+        image = post_vars.get("image") or ""
 
         return await extract_to_table_post(
             datasette, request, content, image, database, table, properties
@@ -115,7 +115,7 @@ async def extract_to_table(datasette, request, scope, receive):
                 if description:
                     properties[name]["description"] = description
 
-        image = post_vars["image"]
+        image = post_vars.get("image") or ""
         content = (post_vars.get("content") or "").strip()
         return await extract_to_table_post(
             datasette, request, content, image, database, table, properties
