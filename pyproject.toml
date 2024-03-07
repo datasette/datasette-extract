@@ -1,6 +1,15 @@
 [project]
 name = "datasette-extract"
 version = "0.1"
+description = "Import unstructured data (text and images) into structured tables"
+readme = "README.md"
+authors = [{name = "Simon Willison"}]
+license = {text = "Apache-2.0"}
+classifiers=[
+    "Framework :: Datasette",
+    "License :: OSI Approved :: Apache Software License"
+]
+requires-python = ">=3.8"
 dependencies = [
     "datasette",
     "sqlite-utils",
@@ -24,6 +33,9 @@ test = ["pytest", "pytest-asyncio"]
 
 [tool.setuptools.packages.find]
 where = ["."]
+
+[tool.pytest.ini_options]
+asyncio_mode = "strict"
 
 [tool.setuptools.package-data]
 datasette_extract = ["static/*", "templates/*"]
