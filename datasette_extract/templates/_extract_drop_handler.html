@@ -1,0 +1,143 @@
+<script type="module">
+const textarea = document.getElementById("id_content");
+const imageInput = document.getElementById("id_image");
+const processingMessage = document.getElementById("processing_message");
+
+async function extractText(pdf) {
+  const pdfjs = (
+    await import("/-/static-plugins/datasette_extract/pdfjs-dist-4-0-379.js")
+  ).default;
+  pdfjsLib.GlobalWorkerOptions.workerSrc =
+    "/-/static-plugins/datasette_extract/pdf.worker.mjs";
+
+  const loadingTask = pdfjsLib.getDocument(pdf);
+  const pdfDocument = await loadingTask.promise;
+
+  const numPages = pdfDocument.numPages;
+  let pageTextPromises = [];
+
+  for (let i = 1; i <= numPages; i++) {
+    pageTextPromises.push(
+      pdfDocument.getPage(i).then((page) => page.getTextContent()),
+    );
+  }
+
+  const pageTexts = await Promise.all(pageTextPromises);
+  return pageTexts
+    .map((item) => item.items.map((text) => text.str).join(" "))
+    .join("\n\n");
+}
+
+async function convertHeicToJpeg(file) {
+  const heic2any = (
+    await import("/-/static-plugins/datasette_extract/heic2any-0.0.4.min.js")
+  ).default;
+  try {
+    const blob = await heic2any({
+      blob: file,
+      toType: "image/jpeg",
+      quality: 0.8,
+    });
+    return new File([blob], `converted-${file.name}.jpeg`, {
+      type: "image/jpeg",
+    });
+  } catch (error) {
+    console.error("Conversion error:", error);
+    return null;
+  }
+}
+
+function dragOverHandler(event) {
+  event.preventDefault();
+  event.stopPropagation();
+  textarea.classList.add("drag-over");
+}
+
+function dragLeaveHandler(event) {
+  event.preventDefault();
+  event.stopPropagation();
+  textarea.classList.remove("drag-over");
+}
+
+async function dropHandler(event) {
+  event.preventDefault();
+  event.stopPropagation();
+  textarea.classList.remove("drag-over");
+
+  const files = Array.from(event.dataTransfer.files);
+  const imageFiles = files.filter((file) => file.type.startsWith("image/"));
+  const pdfFiles = files.filter((file) => file.type === "application/pdf");
+  const otherFiles = files.filter(
+    (file) =>
+      !file.type.startsWith("image/") && file.type !== "application/pdf",
+  );
+
+  if (imageFiles.length > 0) {
+    processingMessage.style.display = "block";
+    const convertedImages = await Promise.all(
+      imageFiles.map(async (file) => {
+        if (file.type === "image/heic") {
+          return await convertHeicToJpeg(file);
+        }
+        return file;
+      }),
+    );
+    const validImages = convertedImages.filter((file) => file !== null);
+    if (validImages.length > 0) {
+      const dataTransfer = new DataTransfer();
+      validImages.forEach((file) => dataTransfer.items.add(file));
+      imageInput.files = dataTransfer.files;
+    }
+    processingMessage.style.display = "none";
+  }
+
+  if (pdfFiles.length > 0) {
+    processingMessage.style.display = "block";
+    const pdfTexts = await Promise.all(
+      pdfFiles.map(async (file) =>
+        extractText(new Uint8Array(await file.arrayBuffer())),
+      ),
+    );
+    textarea.value = pdfTexts.join("\n\n");
+    processingMessage.style.display = "none";
+  }
+
+  if (otherFiles.length > 0) {
+    const otherContents = await Promise.all(
+      otherFiles.map(
+        (file) =>
+          new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+              resolve(e.target.result);
+            };
+            reader.onerror = (e) => {
+              reject(new Error("Failed to read file"));
+            };
+            reader.readAsText(file);
+          }),
+      ),
+    );
+    textarea.value +=
+      (textarea.value ? "\n\n" : "") + otherContents.join("\n\n");
+  }
+}
+
+imageInput.addEventListener("change", async (event) => {
+  const file = event.target.files[0];
+  if (file && file.type === "image/heic") {
+    processingMessage.style.display = "block";
+    const convertedFile = await convertHeicToJpeg(file);
+    if (convertedFile) {
+      const dataTransfer = new DataTransfer();
+      dataTransfer.items.add(convertedFile);
+      imageInput.files = dataTransfer.files;
+    }
+    processingMessage.style.display = "none";
+  }
+});
+
+textarea.addEventListener("dragover", dragOverHandler);
+textarea.addEventListener("dragleave", dragLeaveHandler);
+textarea.addEventListener("drop", dropHandler);
+</script>

@@ -40,15 +40,14 @@ table.formgrid td.checkbox {
   <p>
     <textarea name="content" id="id_content" style="width: 100%; height: 20em;" placeholder="Paste content here"></textarea>
   </p>
-  <p><label>Or upload an image: <input type="file" id="id_image" name="image"></label></p>
+  <p id="processing_message" style="display: none;">Processing...</p>
   <p>
-    <input type="submit" value="Extract">
+    <label>Or upload an image: <input type="file" id="id_image" name="image"></label>
   </p>
+  <p><input type="submit" value="Extract"></p>
 </form>
 
-{% include "_extract_heic.html" %}
-
-{% include "_extract_pdf_drop.html" %}
+{% include "_extract_drop_handler.html" %}
 
 {% if previous_runs %}
 <h2>Previous extraction tasks</h2>
