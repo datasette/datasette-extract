@@ -15,7 +15,7 @@ dependencies = [
     "sqlite-utils",
     "openai>=1.0",
     "ijson",
-    "ulid",
+    "python-ulid",
     "starlette",
 ]
 
