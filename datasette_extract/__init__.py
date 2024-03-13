@@ -87,6 +87,7 @@ async def extract_create_table(datasette, request, scope, receive):
         post_vars = await starlette_request.form()
         content = (post_vars.get("content") or "").strip()
         image = post_vars.get("image") or ""
+        instructions = post_vars.get("instructions") or ""
         if not content and not image_is_provided(image):
             return Response.text("No content provided", status=400)
         table = post_vars.get("table")
@@ -107,7 +108,14 @@ async def extract_create_table(datasette, request, scope, receive):
                     properties[value]["description"] = hint
 
         return await extract_to_table_post(
-            datasette, request, content, image, database, table, properties
+            datasette,
+            request,
+            instructions,
+            content,
+            image,
+            database,
+            table,
+            properties,
         )
 
     return Response.html(
@@ -167,9 +175,17 @@ async def extract_to_table(datasette, request, scope, receive):
                     properties[name]["description"] = description
 
         image = post_vars.get("image") or ""
+        instructions = post_vars.get("instructions") or ""
         content = (post_vars.get("content") or "").strip()
         return await extract_to_table_post(
-            datasette, request, content, image, database, table, properties
+            datasette,
+            request,
+            instructions,
+            content,
+            image,
+            database,
+            table,
+            properties,
         )
 
     # Restore properties from previous run, if possible
@@ -180,7 +196,7 @@ async def extract_to_table(datasette, request, scope, receive):
             for row in (
                 await db.execute(
                     """
-            select id, database_name, table_name, created, properties, completed, error, num_items
+            select id, database_name, table_name, created, properties, instructions, completed, error, num_items
             from _datasette_extract
             where database_name = :database_name and table_name = :table_name
             order by id desc limit 20
@@ -195,6 +211,8 @@ async def extract_to_table(datasette, request, scope, receive):
         for name, value in schema.items()
     ]
 
+    instructions = ""
+
     # If there are previous runs, use the properties from the last one to update columns
     if previous_runs:
         properties = json.loads(previous_runs[0]["properties"])
@@ -204,6 +222,7 @@ async def extract_to_table(datasette, request, scope, receive):
             column["hint"] = (properties.get(column_name) or {}).get(
                 "description"
             ) or ""
+        instructions = previous_runs[0]["instructions"] or ""
 
     return Response.html(
         await datasette.render_template(
@@ -213,6 +232,7 @@ async def extract_to_table(datasette, request, scope, receive):
                 "table": table,
                 "schema": schema,
                 "columns": columns,
+                "instructions": instructions,
                 "previous_runs": previous_runs,
             },
             request=request,
@@ -221,7 +241,7 @@ async def extract_to_table(datasette, request, scope, receive):
 
 
 async def extract_table_task(
-    datasette, database, table, properties, content, image, task_id
+    datasette, database, table, properties, instructions, content, image, task_id
 ):
     # This task runs in the background
     events = ijson.sendable_list()
@@ -234,6 +254,7 @@ async def extract_table_task(
         "items": items,
         "database": database,
         "table": table,
+        "instructions": instructions,
         "properties": properties,
         "error": None,
         "done": False,
@@ -251,12 +272,14 @@ async def extract_table_task(
                     "database_name": database,
                     "table_name": table,
                     "created": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"),
+                    "instructions": instructions.strip() or None,
                     "properties": json.dumps(properties),
                     "completed": None,
                     "error": None,
                     "num_items": 0,
                 },
                 pk="id",
+                alter=True,
             )
 
     async_client = AsyncOpenAI()
@@ -298,6 +321,8 @@ async def extract_table_task(
 
     try:
         messages = []
+        if instructions:
+            messages.append({"role": "system", "content": instructions})
         if content:
             messages.append({"role": "user", "content": content})
         if image_is_provided(image):
@@ -379,7 +404,7 @@ async def extract_table_task(
 
 
 async def extract_to_table_post(
-    datasette, request, content, image, database, table, properties
+    datasette, request, instructions, content, image, database, table, properties
 ):
     # Here we go!
     if not content and not image_is_provided(image):
@@ -389,7 +414,14 @@ async def extract_to_table_post(
 
     asyncio.create_task(
         extract_table_task(
-            datasette, database, table, properties, content, image, task_id
+            datasette,
+            database,
+            table,
+            properties,
+            instructions,
+            content,
+            image,
+            task_id,
         )
     )
     return Response.redirect(

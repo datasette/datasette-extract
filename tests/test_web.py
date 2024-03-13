@@ -25,6 +25,7 @@ async def test_extract_flow():
             "type_0": "string",
             "name_1": "age",
             "type_1": "integer",
+            "instructions": "Be nice",
         },
         files={
             # Send an empty image too
@@ -51,6 +52,7 @@ async def test_extract_flow():
 
     assert data == {
         "items": [{"name": "Sergei", "age": 4}, {"name": "Cynthia", "age": 7}],
+        "instructions": "Be nice",
         "database": "data",
         "table": "ages",
         "properties": {"name": {"type": "string"}, "age": {"type": "integer"}},

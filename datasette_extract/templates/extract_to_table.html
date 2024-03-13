@@ -44,6 +44,10 @@ table.formgrid td.checkbox {
   <p>
     <label>Or upload an image: <input type="file" id="id_image" name="image"></label>
   </p>
+  <p><label for="id_instructions">Additional instructions:</label></p>
+  <p>
+    <textarea name="instructions" id="id_instructions" style="width: 100%; height: 5em;" placeholder="Optional additional instructions">{{ instructions }}</textarea>
+  </p>
   <p><input type="submit" value="Extract"></p>
 </form>
 
@@ -51,12 +55,14 @@ table.formgrid td.checkbox {
 
 {% if previous_runs %}
 <h2>Previous extraction tasks</h2>
+<div style="overflow: auto">
 <table>
   <tr>
     <th>ID</th>
     <th>created</th>
     <th>completed</th>
     <th>properties</th>
+    <th>instructions</th>
     <th>error</th>
     <th>num_items</th>
   </tr>
@@ -66,11 +72,13 @@ table.formgrid td.checkbox {
     <td>{{ run.created }}</td>
     <td>{{ run.completed or "" }}</td>
     <td>{{ run.properties }}</td>
+    <td>{{ run.instructions }}</td>
     <td>{{ run.error or "" }}</td>
     <td>{{ run.num_items }}</td>
   </tr>
   {% endfor %}
 </table>
+</div>
 {% endif %}
 
 {% endblock %}
