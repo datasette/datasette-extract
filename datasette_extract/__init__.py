@@ -10,22 +10,6 @@ import json
 import ulid
 
 
-CREATE_JOB_TABLE_SQL = """
-create table if not exists _extract_jobs (
-    id integer primary key,
-    database_name text,
-    table_name text,
-    content text,
-    custom_prompt text, -- for custom system prompt
-    properties text, -- JSON function properties definition
-    started_at text, -- ISO8601 when added
-    finished_at text, -- ISO8601 when completed or cancelled
-    row_count integer, -- starts at 0
-    error text
-);
-"""
-
-
 @hookimpl
 def register_permissions(datasette):
     return [
