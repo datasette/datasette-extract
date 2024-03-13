@@ -72,7 +72,7 @@ table.formgrid td.checkbox {
     <td>{{ run.created }}</td>
     <td>{{ run.completed or "" }}</td>
     <td>{{ run.properties }}</td>
-    <td>{{ run.instructions }}</td>
+    <td>{{ run.instructions or "" }}</td>
     <td>{{ run.error or "" }}</td>
     <td>{{ run.num_items }}</td>
   </tr>
