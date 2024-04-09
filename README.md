@@ -33,7 +33,7 @@ Text input can be pasted directly into the textarea.
 
 Drag and drop a PDF or text file onto the textarea to populate it with the contents of that file. PDF files will have their text extracted, but only if the file contains text as opposed to scanned images.
 
-Drag and drop a single image onto the textarea - or select it with the image file input box - to process an image. These will have OCR run against them using GPT-4 Vision and then that text will be used for structured data extraction.
+Drag and drop a single image onto the textarea - or select it with the image file input box - to process an image.
 
 ## Permissions
 
