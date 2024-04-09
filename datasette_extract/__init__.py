@@ -281,45 +281,32 @@ async def extract_table_task(
 
     error = None
 
-    async def ocr_image(image_bytes):
-        base64_image = base64.b64encode(image_bytes).decode("utf-8")
-        messages = [
-            {
-                "role": "system",
-                "content": "Run OCR and return all of the text in this image, with newlines where appropriate",
-            },
-            {
-                "role": "user",
-                "content": [
-                    {
-                        "type": "image_url",
-                        "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"},
-                    }
-                ],
-            },
-        ]
-        response = await async_client.chat.completions.create(
-            model="gpt-4-vision-preview", messages=messages, max_tokens=400
-        )
-        return response.choices[0].message.content
-
     try:
         messages = []
         if instructions:
             messages.append({"role": "system", "content": instructions})
+        if image_is_provided(image):
+            image_bytes = await image.read()
+            base64_image = base64.b64encode(image_bytes).decode("utf-8")
+            messages.append(
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": f"data:image/jpeg;base64,{base64_image}"
+                            },
+                        }
+                    ],
+                }
+            )
         if content:
             messages.append({"role": "user", "content": content})
-        if image_is_provided(image):
-            # Run a separate thing to OCR the image first, because gpt-4-vision can't handle tools yet
-            image_content = await ocr_image(await image.read())
-            if image_content:
-                messages.append({"role": "user", "content": image_content})
-            else:
-                raise ValueError("Could not extract text from image")
 
         async for chunk in await async_client.chat.completions.create(
             stream=True,
-            model="gpt-4-turbo-preview",
+            model="gpt-4-turbo",
             messages=messages,
             tools=[
                 {
