@@ -457,7 +457,8 @@ def database_actions(datasette, actor, database):
         return [
             {
                 "href": datasette.urls.database(database) + "/-/extract",
-                "label": "Create table with extracted data",
+                "label": "Create table with AI extracted data",
+                "description": "Paste in text or an image to extract structured data",
             }
         ]
 
@@ -472,7 +473,8 @@ def table_actions(datasette, actor, database, table):
         return [
             {
                 "href": datasette.urls.table(database, table) + "/-/extract",
-                "label": "Extract data into this table",
+                "label": "Extract data into this table with AI",
+                "description": "Paste in text or an image to extract structured data",
             }
         ]
 
