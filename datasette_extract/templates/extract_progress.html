@@ -83,13 +83,19 @@ async function pollData() {
     if (data && data.items && data.items.length) {
         outputElement.textContent = JSON.stringify(data.items, null, 2);
     }
+    let finishMessage = 'Extraction complete!';
+    if (data && data.error) {
+        outputElement.textContent = `Error: ${data.error}`;
+        outputElement.style.color = "red";
+        finishMessage = 'Extraction failed';
+    }
     if (data.done) {
         clearInterval(pollInterval);
         const loadingSpinner = document.getElementById("loadingSpinner");
         loadingSpinner.parentNode.removeChild(loadingSpinner);
         const doneMessage = document.createElement("p");
         doneMessage.style.fontWeight = "bold";
-        doneMessage.textContent = "Extraction complete!";
+        doneMessage.textContent = finishMessage;
         outputElement.parentNode.appendChild(doneMessage);
     }
 }
