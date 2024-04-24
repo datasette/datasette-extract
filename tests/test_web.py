@@ -109,3 +109,28 @@ async def test_permissions(actor, path, should_allow):
         assert fragment in html
     else:
         assert fragment not in html
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("path", ("/test2", "/test2/foo"))
+@pytest.mark.parametrize("has_env_variable", (True, False))
+async def test_action_menus_require_api_key(monkeypatch, path, has_env_variable):
+    if not has_env_variable:
+        monkeypatch.delenv("DATASETTE_SECRETS_OPENAI_API_KEY")
+    ds = Datasette(
+        config={
+            "permissions": {
+                "datasette-extract": {"id": "root"},
+            }
+        }
+    )
+    db = ds.add_memory_database("test2")
+    await db.execute_write("create table if not exists foo (id integer primary key)")
+    cookies = {"ds_actor": ds.client.actor_cookie({"id": "root"})}
+    response = await ds.client.get(path, cookies=cookies)
+
+    fragment = '/-/extract"'
+    if has_env_variable:
+        assert fragment in response.text
+    else:
+        assert fragment not in response.text

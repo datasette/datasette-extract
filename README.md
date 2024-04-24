@@ -16,7 +16,9 @@ datasette install datasette-extract
 
 ## Configuration
 
-This plugin requires an `OPENAI_API_KEY` environment variable with an [OpenAI API key](https://platform.openai.com/api-keys).
+This plugin requires an [OpenAI API key](https://platform.openai.com/api-keys).
+
+You can set this using the `DATASETTE_SECRETS_OPENAI_API_KEY` environment variable, or you can configure the [datasette-secrets](https://github.com/datasette/datasette-secrets) plugin to allow users to enter their own plugin and save it, encrypted, in their database.
 
 ## Usage
 

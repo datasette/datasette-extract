@@ -1,8 +1,9 @@
 import asyncio
 import base64
 from datasette import hookimpl, Response, NotFound, Permission, Forbidden
+from datasette_secrets import Secret, get_secret
 from datetime import datetime, timezone
-from openai import AsyncOpenAI, OpenAIError
+from openai import AsyncOpenAI
 from sqlite_utils import Database
 from starlette.requests import Request as StarletteRequest
 import ijson
@@ -21,6 +22,17 @@ def register_permissions(datasette):
             takes_resource=False,
             default=False,
         )
+    ]
+
+
+@hookimpl
+def register_secrets():
+    return [
+        Secret(
+            name="OPENAI_API_KEY",
+            obtain_label="Get an OpenAI API key",
+            obtain_url="https://platform.openai.com/api-keys",
+        ),
     ]
 
 
@@ -266,7 +278,7 @@ async def extract_table_task(
                 alter=True,
             )
 
-    async_client = AsyncOpenAI()
+    async_client = AsyncOpenAI(api_key=await get_secret(datasette, "OPENAI_API_KEY"))
     db = datasette.get_database(database)
 
     await db.execute_write_fn(start_write)
@@ -453,7 +465,9 @@ def get_type(type_):
 def database_actions(datasette, actor, database):
     async def inner():
         if not await can_extract(datasette, actor, database):
-            return []
+            return
+        if not await get_secret(datasette, "OPENAI_API_KEY"):
+            return
         return [
             {
                 "href": datasette.urls.database(database) + "/-/extract",
@@ -469,7 +483,9 @@ def database_actions(datasette, actor, database):
 def table_actions(datasette, actor, database, table):
     async def inner():
         if not await can_extract(datasette, actor, database, table):
-            return []
+            return
+        if not await get_secret(datasette, "OPENAI_API_KEY"):
+            return
         return [
             {
                 "href": datasette.urls.table(database, table) + "/-/extract",
