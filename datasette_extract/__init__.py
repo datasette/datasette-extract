@@ -318,7 +318,7 @@ async def extract_table_task(
 
         async for chunk in await async_client.chat.completions.create(
             stream=True,
-            model="gpt-4-turbo",
+            model="gpt-4o",
             messages=messages,
             tools=[
                 {

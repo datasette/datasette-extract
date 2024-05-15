@@ -1,7 +1,7 @@
 interactions:
 - request:
     body: '{"messages": [{"role": "user", "content": "Sergei is 4, Cynthia is 7"}],
-      "model": "gpt-4-turbo-preview", "max_tokens": 4096, "stream": true, "tool_choice":
+      "model": "gpt-4o", "max_tokens": 4096, "stream": true, "tool_choice":
       {"type": "function", "function": {"name": "extract_data"}}, "tools": [{"type":
       "function", "function": {"name": "extract_data", "description": "Extract data
       matching this schema", "parameters": {"type": "object", "properties": {"items":
