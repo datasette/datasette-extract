@@ -20,6 +20,16 @@ This plugin requires an [OpenAI API key](https://platform.openai.com/api-keys).
 
 You can set this using the `DATASETTE_SECRETS_OPENAI_API_KEY` environment variable, or you can configure the [datasette-secrets](https://github.com/datasette/datasette-secrets) plugin to allow users to enter their own plugin and save it, encrypted, in their database.
 
+Here's how to start using this plugin with that environment variable:
+
+```bash
+DATASETTE_SECRETS_OPENAI_API_KEY="xxx" datasette data.db --root --create
+# Now click or command-click the URL containing .../-/auth-token?token=...
+```
+- Replace `xxx` with your OpenAI API key
+- The `--root` flag causes Datasette to output a link that will sign you in as root
+- The `--create` flag will create the `data.db` SQLite database file if it does not exist
+
 ## Usage
 
 This plugin provides the following features:
