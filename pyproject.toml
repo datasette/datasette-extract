@@ -1,6 +1,6 @@
 [project]
 name = "datasette-extract"
-version = "0.1a7"
+version = "0.1a8"
 description = "Import unstructured data (text and images) into structured tables"
 readme = "README.md"
 authors = [{name = "Simon Willison"}]
