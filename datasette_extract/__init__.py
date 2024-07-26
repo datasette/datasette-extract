@@ -9,6 +9,7 @@ from starlette.requests import Request as StarletteRequest
 import ijson
 import json
 import ulid
+import urllib
 
 
 @hookimpl
@@ -114,12 +115,25 @@ async def extract_create_table(datasette, request, scope, receive):
             properties,
         )
 
+    fields = []
+    if "_fields" in request.args:
+        try:
+            fields = [
+                field
+                for field in json.loads(request.args["_fields"])
+                if isinstance(field, dict) and isinstance(field.get("index"), int)
+            ]
+        except (json.JSONDecodeError, TypeError):
+            fields = []
+    if not fields:
+        fields = [{"index": i} for i in range(10)]
+
     return Response.html(
         await datasette.render_template(
             "extract_create_table.html",
             {
                 "database": database,
-                "fields": range(10),
+                "fields": fields,
             },
             request=request,
         )
@@ -220,6 +234,26 @@ async def extract_to_table(datasette, request, scope, receive):
             ) or ""
         instructions = previous_runs[0]["instructions"] or ""
 
+    duplicate_url = (
+        datasette.urls.database(database)
+        + "/-/extract?"
+        + urllib.parse.urlencode(
+            {
+                "_fields": json.dumps(
+                    [
+                        {
+                            "index": i,
+                            "name": col["name"],
+                            "type": col["type"].__name__,
+                            "hint": col["hint"],
+                        }
+                        for i, col in enumerate(columns)
+                    ]
+                )
+            }
+        )
+    )
+
     return Response.html(
         await datasette.render_template(
             "extract_to_table.html",
@@ -229,6 +263,7 @@ async def extract_to_table(datasette, request, scope, receive):
                 "schema": schema,
                 "columns": columns,
                 "instructions": instructions,
+                "duplicate_url": duplicate_url,
                 "previous_runs": previous_runs,
             },
             request=request,

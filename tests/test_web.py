@@ -1,6 +1,8 @@
 import asyncio
 from datasette.app import Datasette
+import json
 import pytest
+import urllib
 
 
 @pytest.mark.vcr(ignore_localhost=True)
@@ -134,3 +136,86 @@ async def test_action_menus_require_api_key(monkeypatch, path, has_env_variable)
         assert fragment in response.text
     else:
         assert fragment not in response.text
+
+
+@pytest.mark.asyncio
+async def test_create_table_copying_columns():
+    ds = Datasette()
+    data = ds.add_memory_database("data")
+    await data.execute_write(
+        "create table foo (name text, age integer, weight float, bio text)"
+    )
+    cookies = {"ds_actor": ds.client.actor_cookie({"id": "root"})}
+    response = await ds.client.get("/data/foo/-/extract", cookies=cookies)
+    assert response.status_code == 200
+    fields_raw = response.text.split('<p><a href="/data/-/extract?_fields=')[1].split(
+        '"'
+    )[0]
+    fields = json.loads(urllib.parse.unquote_plus(fields_raw))
+    assert fields == [
+        {"index": 0, "name": "name", "type": "str", "hint": ""},
+        {"index": 1, "name": "age", "type": "int", "hint": ""},
+        {"index": 2, "name": "weight", "type": "float", "hint": ""},
+        {"index": 3, "name": "bio", "type": "str", "hint": ""},
+    ]
+    # Navigating to the /data/-/extract page with that link should prefill the form
+    response2 = await ds.client.get(
+        f"/data/-/extract?_fields={fields_raw}", cookies=cookies
+    )
+    expected = """
+        <p>
+      <label>Name <input type="text" name="name_0" value="name"></label>
+      <label>Type <select name="type_0">
+        <option value="string" selected>Text</option>
+        <option value="integer">Integer</option>
+        <option value="float">Float</option>
+        </select>
+      </label>
+      <label>Hint
+        <input size="40" type="text" name="hint_0" value="" placeholder="Optional hint">
+      </label>
+    </p>
+    <p>
+      <label>Name <input type="text" name="name_1" value="age"></label>
+      <label>Type <select name="type_1">
+        <option value="string">Text</option>
+        <option value="integer" selected>Integer</option>
+        <option value="float">Float</option>
+        </select>
+      </label>
+      <label>Hint
+        <input size="40" type="text" name="hint_1" value="" placeholder="Optional hint">
+      </label>
+    </p>
+    <p>
+      <label>Name <input type="text" name="name_2" value="weight"></label>
+      <label>Type <select name="type_2">
+        <option value="string">Text</option>
+        <option value="integer">Integer</option>
+        <option value="float" selected>Float</option>
+        </select>
+      </label>
+      <label>Hint
+        <input size="40" type="text" name="hint_2" value="" placeholder="Optional hint">
+      </label>
+    </p>
+    <p>
+      <label>Name <input type="text" name="name_3" value="bio"></label>
+      <label>Type <select name="type_3">
+        <option value="string" selected>Text</option>
+        <option value="integer">Integer</option>
+        <option value="float">Float</option>
+        </select>
+      </label>
+      <label>Hint
+        <input size="40" type="text" name="hint_3" value="" placeholder="Optional hint">
+      </label>
+    </p>
+    """
+    expected_stripped = strip_whitespace(expected)
+    actual_stripped = strip_whitespace(response2.text)
+    assert expected_stripped in actual_stripped
+
+
+def strip_whitespace(text):
+    return "".join(text.split())

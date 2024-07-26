@@ -18,15 +18,15 @@
   <div id="fields-container">
   {% for field in fields %}
     <p>
-      <label>Name <input type="text" name="name_{{ field }}"></label>
-      <label>Type <select name="type_{{ field }}">
-        <option value="string">Text</option>
-        <option value="integer">Integer</option>
-        <option value="float">Float</option>
+      <label>Name <input type="text" name="name_{{ field.index }}" value="{{ field.name or '' }}"></label>
+      <label>Type <select name="type_{{ field.index }}">
+        <option value="string"{% if field.type == "str" %} selected{% endif %}>Text</option>
+        <option value="integer"{% if field.type == "int" %} selected{% endif %}>Integer</option>
+        <option value="float"{% if field.type == "float" %} selected{% endif %}>Float</option>
         </select>
       </label>
       <label>Hint
-        <input size="40" type="text" name="hint_{{ field }}" value="" placeholder="Optional hint">
+        <input size="40" type="text" name="hint_{{ field.index }}" value="{{ field.hint or '' }}" placeholder="Optional hint">
       </label>
     </p>
   {% endfor %}
