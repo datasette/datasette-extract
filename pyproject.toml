@@ -9,10 +9,12 @@ classifiers=[
     "Framework :: Datasette",
     "License :: OSI Approved :: Apache Software License"
 ]
-requires-python = ">=3.8"
+requires-python = ">=3.9"
 dependencies = [
     "datasette>=1.0a12",
     "datasette-secrets>=0.1a2",
+    "datasette-llm-usage",
+    "llm>=0.23",
     "sqlite-utils",
     "openai>=1.0",
     "ijson",
