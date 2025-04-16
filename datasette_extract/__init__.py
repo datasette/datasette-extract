@@ -352,31 +352,41 @@ async def extract_table_task(
                 },
                 pk="id",
                 alter=True,
-                column_order=( # Define order explicitly
-                    "id", "database_name", "table_name", "created", "model",
-                    "instructions", "properties", "completed", "error", "num_items"
-                )
+                column_order=(  # Define order explicitly
+                    "id",
+                    "database_name",
+                    "table_name",
+                    "created",
+                    "model",
+                    "instructions",
+                    "properties",
+                    "completed",
+                    "error",
+                    "num_items",
+                ),
             )
 
     db = datasette.get_database(database)
 
     # Ensure table exists before writing
-    await db.execute_write_fn(lambda conn: Database(conn)["_datasette_extract"].create(
-        {
-            "id": str,
-            "database_name": str,
-            "table_name": str,
-            "created": str,
-            "model": str,
-            "instructions": str,
-            "properties": str,
-            "completed": str,
-            "error": str,
-            "num_items": int,
-        },
-        pk="id",
-        if_not_exists=True,
-    ))
+    await db.execute_write_fn(
+        lambda conn: Database(conn)["_datasette_extract"].create(
+            {
+                "id": str,
+                "database_name": str,
+                "table_name": str,
+                "created": str,
+                "model": str,
+                "instructions": str,
+                "properties": str,
+                "completed": str,
+                "error": str,
+                "num_items": int,
+            },
+            pk="id",
+            if_not_exists=True,
+        )
+    )
 
     await db.execute_write_fn(start_write)
 
