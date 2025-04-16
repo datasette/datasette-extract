@@ -1,9 +1,8 @@
 import asyncio
-import base64
+import llm
 from datasette import hookimpl, Response, NotFound, Permission, Forbidden
 from datasette_secrets import Secret, get_secret
 from datetime import datetime, timezone
-from openai import AsyncOpenAI
 from sqlite_utils import Database
 from starlette.requests import Request as StarletteRequest
 import ijson
@@ -43,6 +42,10 @@ def permission_allowed(action, actor):
         return True
 
 
+def get_config(datasette):
+    return datasette.plugin_config("datasette-extract") or {}
+
+
 async def can_extract(datasette, actor, database_name, to_table=None):
     if actor is None:
         return False
@@ -72,7 +75,7 @@ def image_is_provided(image):
 async def extract_create_table(datasette, request, scope, receive):
     database = request.url_vars["database"]
     try:
-        db = datasette.get_database(database)
+        datasette.get_database(database)
     except KeyError:
         raise NotFound("Database '{}' does not exist".format(database))
 
@@ -85,11 +88,13 @@ async def extract_create_table(datasette, request, scope, receive):
         content = (post_vars.get("content") or "").strip()
         image = post_vars.get("image") or ""
         instructions = post_vars.get("instructions") or ""
-        if not content and not image_is_provided(image):
+        if not content and not image_is_provided(image) and not instructions:
             return Response.text("No content provided", status=400)
         table = post_vars.get("table")
         if not table:
             return Response.text("No table provided", status=400)
+
+        model_id = post_vars["model"]
 
         properties = {}
         # Build the properties out of name_0 upwards, only if populated
@@ -107,6 +112,7 @@ async def extract_create_table(datasette, request, scope, receive):
         return await extract_to_table_post(
             datasette,
             request,
+            model_id,
             instructions,
             content,
             image,
@@ -128,12 +134,24 @@ async def extract_create_table(datasette, request, scope, receive):
     if not fields:
         fields = [{"index": i} for i in range(10)]
 
+    models = [
+        {"id": model.model_id, "name": str(model)}
+        for model in llm.get_async_models()
+        if model.supports_schema
+    ]
+
+    config = get_config(datasette)
+    print("config", config)
+    if config.get("models"):
+        models = [model for model in models if model["id"] in config["models"]]
+
     return Response.html(
         await datasette.render_template(
             "extract_create_table.html",
             {
                 "database": database,
                 "fields": fields,
+                "models": models,
             },
             request=request,
         )
@@ -272,9 +290,17 @@ async def extract_to_table(datasette, request, scope, receive):
 
 
 async def extract_table_task(
-    datasette, database, table, properties, instructions, content, image, task_id
+    datasette,
+    model_id,
+    database,
+    table,
+    properties,
+    instructions,
+    content,
+    image,
+    task_id,
 ):
-    # This task runs in the background
+    # This task runs in the background and writes to the table as it extracts rows
     events = ijson.sendable_list()
     coro = ijson.items_coro(events, "items.item")
     seen_events = set()
@@ -284,6 +310,7 @@ async def extract_table_task(
     task_info = {
         "items": items,
         "database": database,
+        "model": model_id,
         "table": table,
         "instructions": instructions,
         "properties": properties,
@@ -303,6 +330,7 @@ async def extract_table_task(
                     "database_name": database,
                     "table_name": table,
                     "created": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"),
+                    "model": model_id,
                     "instructions": instructions.strip() or None,
                     "properties": json.dumps(properties),
                     "completed": None,
@@ -313,7 +341,6 @@ async def extract_table_task(
                 alter=True,
             )
 
-    async_client = AsyncOpenAI(api_key=await get_secret(datasette, "OPENAI_API_KEY"))
     db = datasette.get_database(database)
 
     await db.execute_write_fn(start_write)
@@ -329,64 +356,36 @@ async def extract_table_task(
     error = None
 
     try:
-        messages = []
+
+        model = llm.get_async_model(model_id)
+        kwargs = {}
         if instructions:
-            messages.append({"role": "system", "content": instructions})
+            kwargs["system"] = instructions
         if image_is_provided(image):
             image_bytes = await image.read()
-            base64_image = base64.b64encode(image_bytes).decode("utf-8")
-            messages.append(
-                {
-                    "role": "user",
-                    "content": [
-                        {
-                            "type": "image_url",
-                            "image_url": {
-                                "url": f"data:image/jpeg;base64,{base64_image}"
-                            },
-                        }
-                    ],
-                }
-            )
+            kwargs["attachments"] = llm.Attachment(content=image_bytes)
         if content:
-            messages.append({"role": "user", "content": content})
+            kwargs["prompt"] = content
 
-        async for chunk in await async_client.chat.completions.create(
-            stream=True,
-            model="gpt-4o-mini",
-            messages=messages,
-            tools=[
-                {
-                    "type": "function",
-                    "function": {
-                        "name": "extract_data",
-                        "description": "Extract data matching this schema",
-                        "parameters": {
-                            "type": "object",
-                            "properties": {
-                                "items": {
-                                    "type": "array",
-                                    "items": {
-                                        "type": "object",
-                                        "properties": properties,
-                                        "required": list(properties.keys()),
-                                    },
-                                }
-                            },
-                            "required": ["items"],
-                        },
+        kwargs["schema"] = {
+            "type": "object",
+            "description": "Extract data",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": properties,
+                        "required": list(properties.keys()),
                     },
-                },
-            ],
-            tool_choice={"type": "function", "function": {"name": "extract_data"}},
-            max_tokens=4096,
-        ):
-            try:
-                content = chunk.choices[0].delta.tool_calls[0].function.arguments
-            except (AttributeError, TypeError):
-                content = None
-            if content:
-                coro.send(content.encode("utf-8"))
+                }
+            },
+            "required": ["items"],
+        }
+
+        async for chunk in model.prompt(**kwargs):
+            if chunk:
+                coro.send(chunk.encode("utf-8"))
                 if events:
                     # Any we have not seen yet?
                     unseen_events = [
@@ -422,17 +421,26 @@ async def extract_table_task(
 
 
 async def extract_to_table_post(
-    datasette, request, instructions, content, image, database, table, properties
+    datasette,
+    request,
+    model_id,
+    instructions,
+    content,
+    image,
+    database,
+    table,
+    properties,
 ):
     # Here we go!
-    if not content and not image_is_provided(image):
-        return Response.text("No content provided")
+    if not content and not image_is_provided(image) and not instructions:
+        return Response.text("No content provided", status=400)
 
     task_id = str(ulid.ULID())
 
     asyncio.create_task(
         extract_table_task(
             datasette,
+            model_id,
             database,
             table,
             properties,
@@ -500,8 +508,6 @@ def get_type(type_):
 def database_actions(datasette, actor, database):
     async def inner():
         if not await can_extract(datasette, actor, database):
-            return
-        if not await get_secret(datasette, "OPENAI_API_KEY"):
             return
         return [
             {

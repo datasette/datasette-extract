@@ -20,6 +20,18 @@ This plugin requires an [OpenAI API key](https://platform.openai.com/api-keys).
 
 You can set this using the `DATASETTE_SECRETS_OPENAI_API_KEY` environment variable, or you can configure the [datasette-secrets](https://github.com/datasette/datasette-secrets) plugin to allow users to enter their own plugin and save it, encrypted, in their database.
 
+If you are using other models from plugins you should consult those LLM plugins for documentation on how to configure their API keys, if they need one.
+
+By default all asyncio and schema supporting LLM models will be provided as options for the user. You can restrict that to a subset of models using the `models` setting:
+
+```yaml
+plugins:
+ datasette-extract:
+  models:
+  - openai/gpt-4.1-nano
+```
+If you only list a single model users will not get an option to select the model when they use the extraction tool.
+
 ## Usage
 
 This plugin provides the following features:
@@ -44,6 +56,14 @@ Users must have the `datasette-extract` permission to use this tool.
 In order to create tables they also need the `create-table` permission.
 
 To insert rows into an existing table they need `insert-row`.
+
+Run this to grant those permissions to the root user:
+```bash
+datasette . --root \
+  -s permissions.insert-row.id root \
+  -s permissions.create-table.id root \
+  -s permissions.datasette-extract.id root \
+```
 
 ## Development
 

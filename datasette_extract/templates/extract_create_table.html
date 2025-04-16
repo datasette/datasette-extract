@@ -3,51 +3,255 @@
 {% block title %}Extract data and create a new table{% endblock %}
 
 {% block extra_head %}
-<link type="text/css" rel="stylesheet" href="/-/static-plugins/datasette-extract/extract.css">
+<style>
+  * {
+    box-sizing: border-box;
+  }
+
+  /* Clean Card Layout Styles */
+  .extract-container {
+    --primary-color: #4a6fa5;
+    --secondary-color: #f8f9fa;
+    --border-radius: 8px;
+    --shadow: 0 2px 10px rgba(0,0,0,0.1);
+    max-width: 1000px;
+    margin: 0 auto;
+    padding: 0 20px;
+  }
+
+  .extract-form {
+    background-color: white;
+    border-radius: var(--border-radius);
+    box-shadow: var(--shadow);
+    padding: 24px;
+    margin-bottom: 30px;
+  }
+
+  .form-header {
+    border-bottom: 1px solid #eee;
+    margin-bottom: 20px;
+    padding-bottom: 15px;
+  }
+
+  .form-header h1 {
+    margin-top: 0;
+    color: var(--primary-color);
+    font-size: 1.8em;
+  }
+
+  .form-group {
+    margin-bottom: 20px;
+  }
+
+  .extract-form label {
+    display: block;
+    font-weight: bold;
+    margin-bottom: 8px;
+    font-family: Helvetica, Arial, sans-serif;
+  }
+
+  .extract-form input[type="text"],
+  .extract-form select {
+    width: 100%;
+    padding: 8px 12px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-size: 16px;
+    font-family: Helvetica, Arial, sans-serif;
+  }
+
+  .extract-form textarea {
+    width: 100%;
+    padding: 8px 12px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-size: 16px;
+    font-family: Helvetica, Arial, sans-serif;
+  }
+
+  .field-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 15px;
+    margin-bottom: 15px;
+    align-items: flex-start;
+  }
+
+  .name-field {
+    flex: 2 1 200px;
+  }
+
+  .type-field {
+    flex: 1 1 100px;
+  }
+
+  .hint-field {
+    flex: 3 1 300px;
+  }
+
+  .file-upload {
+    border: 2px dashed #ddd;
+    padding: 20px;
+    text-align: center;
+    border-radius: var(--border-radius);
+    margin-bottom: 20px;
+  }
+
+  .column-container {
+    margin-bottom: 30px;
+    border-bottom: 1px solid #eee;
+    padding-bottom: 20px;
+  }
+
+  .column-header {
+    margin-bottom: 16px;
+    color: var(--primary-color);
+  }
+
+  .section-title {
+    color: var(--primary-color);
+    margin-top: 25px;
+    margin-bottom: 15px;
+    font-size: 1.2em;
+  }
+
+  #add-column-btn {
+    background-color: var(--secondary-color);
+    color: #333;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    padding: 8px 16px;
+    cursor: pointer;
+    font-size: 16px;
+    font-family: Helvetica, Arial, sans-serif;
+    transition: background-color 0.3s;
+  }
+
+  #add-column-btn:hover {
+    background-color: #e9ecef;
+  }
+
+  .extract-form input[type="submit"] {
+    background-color: var(--primary-color);
+    color: white;
+    border: none;
+    border-radius: 4px;
+    padding: 10px 20px;
+    cursor: pointer;
+    font-size: 16px;
+    font-family: Helvetica, Arial, sans-serif;
+    transition: background-color 0.3s;
+  }
+
+  .extract-form input[type="submit"]:hover {
+    background-color: #395d8e;
+  }
+
+  #processing_message {
+    background-color: #fff8e5;
+    padding: 10px;
+    border-radius: 4px;
+    border-left: 4px solid #ffc107;
+    margin: 15px 0;
+  }
+
+  /* Responsive adjustments */
+  @media (max-width: 768px) {
+    .field-row {
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .name-field, .type-field, .hint-field {
+      flex: 1 1 100%;
+    }
+
+    .extract-form {
+      padding: 16px;
+    }
+  }
+</style>
 {% endblock %}
 
 {% block content %}
-<h1>Extract data and create a new table in {{ database }}</h1>
-
-<form action="{{ request.path }}" method="POST" class="extract-form" enctype="multipart/form-data">
-  <p>
-    <input type="hidden" name="csrftoken" value="{{ csrftoken() }}">
-    <label for="table">Table name:</label>
-    <input type="text" name="table" id="table" value="" placeholder="Enter a new table name">
-  </p>
-  <div id="fields-container">
-  {% for field in fields %}
-    <p>
-      <label>Name <input type="text" name="name_{{ field.index }}" value="{{ field.name or '' }}"></label>
-      <label>Type <select name="type_{{ field.index }}">
-        <option value="string"{% if field.type == "str" %} selected{% endif %}>Text</option>
-        <option value="integer"{% if field.type == "int" %} selected{% endif %}>Integer</option>
-        <option value="float"{% if field.type == "float" %} selected{% endif %}>Float</option>
-        </select>
-      </label>
-      <label>Hint
-        <input size="40" type="text" name="hint_{{ field.index }}" value="{{ field.hint or '' }}" placeholder="Optional hint">
-      </label>
-    </p>
-  {% endfor %}
+<div class="extract-container">
+  <div class="form-header">
+    <h1>Extract data and create a new table in {{ database }}</h1>
   </div>
-  <p id="add-another" style="display: none"><button type="button" id="add-column-btn">Add another column</button></p>
-  <p><label for="id_content">Paste data here, or drag and drop text or PDF files:</label></p>
-  <p>
-    <textarea name="content" id="id_content" style="width: 100%; height: 20em;" placeholder="Paste content here"></textarea>
-  </p>
-  <p id="processing_message" style="display: none;">Processing...</p>
-  <p>
-    <label>Or upload an image: <input type="file" id="id_image" name="image"></label>
-  </p>
-  <p><label for="id_instructions">Additional instructions:</label></p>
-  <p>
-    <textarea name="instructions" id="id_instructions" style="width: 100%; height: 5em;" placeholder="Optional additional instructions"></textarea>
-  </p>
-  <p>
-    <input type="submit" value="Extract">
-  </p>
-</form>
+
+  <form action="{{ request.path }}" method="POST" class="extract-form" enctype="multipart/form-data">
+    <div class="form-group">
+      <input type="hidden" name="csrftoken" value="{{ csrftoken() }}">
+      <label for="table">Table name:</label>
+      <input type="text" name="table" id="table" value="" placeholder="Enter a new table name">
+    </div>
+    {% if models|length > 1 %}
+    <div class="form-group">
+      <label for="model">Model:</label>
+      <select name="model" id="model">
+        {% for model in models %}
+          <option value="{{ model.id }}">{{ model.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    {% else %}
+      <input type="hidden" name="model" value="{{ models[0].id }}">
+    {% endif %}
+
+    <div class="column-container">
+      <h3 class="column-header">Define Columns</h3>
+      <div id="fields-container">
+      {% for field in fields %}
+        <div class="field-row">
+          <div class="name-field">
+            <label>Name</label>
+            <input type="text" name="name_{{ field.index }}" value="{{ field.name or '' }}">
+          </div>
+          <div class="type-field">
+            <label>Type</label>
+            <select name="type_{{ field.index }}">
+              <option value="string"{% if field.type == "str" %} selected{% endif %}>Text</option>
+              <option value="integer"{% if field.type == "int" %} selected{% endif %}>Integer</option>
+              <option value="float"{% if field.type == "float" %} selected{% endif %}>Float</option>
+            </select>
+          </div>
+          <div class="hint-field">
+            <label>Hint</label>
+            <input type="text" name="hint_{{ field.index }}" value="{{ field.hint or '' }}" placeholder="Optional hint">
+          </div>
+        </div>
+      {% endfor %}
+      </div>
+      <div id="add-another" style="display: none; margin-top: 15px;">
+        <button type="button" id="add-column-btn">+ Add another column</button>
+      </div>
+    </div>
+
+    <h3 class="section-title">Enter Your Data</h3>
+    <div class="form-group">
+      <label for="id_content">Paste data here, or drag and drop text or PDF files:</label>
+      <textarea name="content" id="id_content" style="height: 20em;" placeholder="Paste content here"></textarea>
+    </div>
+
+    <div id="processing_message" style="display: none;">
+      <strong>Processing...</strong> This may take a moment.
+    </div>
+
+    <div class="form-group file-upload">
+      <label>Or upload an image:</label>
+      <input type="file" id="id_image" name="image">
+    </div>
+
+    <div class="form-group">
+      <label for="id_instructions">Additional instructions:</label>
+      <textarea name="instructions" id="id_instructions" style="height: 5em;" placeholder="Optional additional instructions"></textarea>
+    </div>
+
+    <div class="form-group">
+      <input type="submit" value="Extract">
+    </div>
+  </form>
+</div>
 
 {% include "_extract_drop_handler.html" %}
 
@@ -55,24 +259,31 @@
 document.querySelector('#add-another').style.display = 'block';
 document.getElementById('add-column-btn').addEventListener('click', function() {
   var fieldsContainer = document.getElementById('fields-container');
-  var fieldCount = fieldsContainer.querySelectorAll('p').length;
-  var newField = `
-    <p>
-      <label>Name <input type="text" name="name_${fieldCount}"></label>
-      <label>Type <select name="type_${fieldCount}">
+  var fieldRows = fieldsContainer.querySelectorAll('.field-row');
+  var fieldCount = fieldRows.length;
+
+  var newField = document.createElement('div');
+  newField.className = 'field-row';
+  newField.innerHTML = `
+    <div class="name-field">
+      <label>Name</label>
+      <input type="text" name="name_${fieldCount}">
+    </div>
+    <div class="type-field">
+      <label>Type</label>
+      <select name="type_${fieldCount}">
         <option value="string">Text</option>
         <option value="integer">Integer</option>
         <option value="float">Float</option>
-        </select>
-      </label>
-      <label>Hint
-        <input size="40" type="text" name="hint_${fieldCount}" value="" placeholder="Optional hint">
-      </label>
-    </p>
+      </select>
+    </div>
+    <div class="hint-field">
+      <label>Hint</label>
+      <input type="text" name="hint_${fieldCount}" value="" placeholder="Optional hint">
+    </div>
   `;
-  fieldsContainer.insertAdjacentHTML('beforeend', newField);
+
+  fieldsContainer.appendChild(newField);
 });
 </script>
-
-
 {% endblock %}
