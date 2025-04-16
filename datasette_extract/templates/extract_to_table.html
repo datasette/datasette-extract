@@ -4,12 +4,26 @@
 
 {% block extra_head %}
 <link type="text/css" rel="stylesheet" href="/-/static-plugins/datasette-extract/extract.css">
-{% endblock %}
-
-{% block content %}
-<h1>Extract data into {{ database }} / {{ table }}</h1>
-
 <style>
+/* Copied basic form group styling from extract_create_table.html for consistency */
+.form-group {
+  margin-bottom: 20px;
+}
+
+label {
+  display: block;
+  font-weight: bold;
+  margin-bottom: 8px;
+  font-family: Helvetica, Arial, sans-serif;
+}
+
+select,
+textarea,
+input[type="text"],
+input[type="submit"] {
+    font-family: Helvetica, Arial, sans-serif;
+}
+
 table.formgrid td {
   white-space: normal;
   padding: 0.2em;
@@ -17,9 +31,33 @@ table.formgrid td {
 table.formgrid td.checkbox {
   vertical-align: middle;
 }
+/* Add some spacing for the hint input */
+table.formgrid td input[type="text"] {
+    margin-left: 0.5em;
+}
+/* Adjust label inside table */
+table.formgrid td label {
+    display: inline; /* Keep label on same line as checkbox */
+    font-weight: normal; /* Don't need bold here */
+    margin-bottom: 0;
+}
+/* Ensure select takes appropriate width */
+.form-group select {
+    width: 100%;
+    padding: 8px 12px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-size: 16px;
+}
 </style>
+{% endblock %}
+
+{% block content %}
+<h1>Extract data into {{ database }} / {{ table }}</h1>
 
 <form action="{{ request.path }}" method="POST" class="extract-form" enctype="multipart/form-data">
+  <input type="hidden" name="csrftoken" value="{{ csrftoken() }}">
+
   <p>Select columns to populate with extracted data:</p>
   <table class="formgrid">
   {% for column in columns %}
@@ -33,22 +71,50 @@ table.formgrid td.checkbox {
       <td>
         <input size="40" type="text" name="hint_{{ column.name }}" value="{{ column.hint }}" placeholder="Optional hint">
       </td>
+    </tr> {# Closing TR tag was missing, added it #}
   {% endfor %}
-    </table>
-  <p><label for="id_content">Paste data here, or drag and drop text or PDF files:</label>
-    <input type="hidden" name="csrftoken" value="{{ csrftoken() }}"></p>
-  <p>
+  </table>
+
+  {% if models|length > 1 %}
+  <div class="form-group">
+    <label for="model">Model:</label>
+    <select name="model" id="model">
+      {% for model in models %}
+        <option value="{{ model.id }}">{{ model.name }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  {% else %}
+    {# Ensure models list is not empty before accessing index 0 #}
+    {% if models %}
+      <input type="hidden" name="model" value="{{ models[0].id }}">
+    {% else %}
+      <p><strong>Error:</strong> No suitable AI models found or configured.</p>
+    {% endif %}
+  {% endif %}
+
+  <div class="form-group">
+    <label for="id_content">Paste data here, or drag and drop text or PDF files:</label>
     <textarea name="content" id="id_content" style="width: 100%; height: 20em;" placeholder="Paste content here"></textarea>
-  </p>
+  </div>
+
   <p id="processing_message" style="display: none;">Processing...</p>
-  <p>
+
+  <div class="form-group">
     <label>Or upload an image: <input type="file" id="id_image" name="image"></label>
-  </p>
-  <p><label for="id_instructions">Additional instructions:</label></p>
-  <p>
+  </div>
+
+  <div class="form-group">
+    <label for="id_instructions">Additional instructions:</label>
     <textarea name="instructions" id="id_instructions" style="width: 100%; height: 5em;" placeholder="Optional additional instructions">{{ instructions }}</textarea>
-  </p>
-  <p><input type="submit" value="Extract"></p>
+  </div>
+
+  {# Only show submit if models are available #}
+  {% if models %}
+  <div class="form-group">
+    <input type="submit" value="Extract">
+  </div>
+  {% endif %}
 </form>
 
 <p><a href="{{ duplicate_url }}">Duplicate these columns to a new table</a></p>
@@ -57,28 +123,34 @@ table.formgrid td.checkbox {
 
 {% if previous_runs %}
 <h2>Previous extraction tasks</h2>
-<div style="overflow: auto">
+<div style="overflow-x: auto;"> {# Changed overflow to overflow-x #}
 <table>
-  <tr>
-    <th>ID</th>
-    <th>created</th>
-    <th>completed</th>
-    <th>properties</th>
-    <th>instructions</th>
-    <th>error</th>
-    <th>num_items</th>
-  </tr>
+  <thead> {# Added thead for better structure #}
+    <tr>
+      <th>ID</th>
+      <th>Created</th>
+      <th>Completed</th>
+      <th>Model</th> {# Added Model column #}
+      <th>Properties</th>
+      <th>Instructions</th>
+      <th>Error</th>
+      <th>Items</th>
+    </tr>
+  </thead>
+  <tbody> {# Added tbody #}
   {% for run in previous_runs %}
   <tr>
     <td>{{ run.id }}</td>
     <td>{{ run.created }}</td>
     <td>{{ run.completed or "" }}</td>
-    <td>{{ run.properties }}</td>
-    <td>{{ run.instructions or "" }}</td>
+    <td>{{ run.model or "" }}</td> {# Display model used #}
+    <td style="max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="{{ run.properties }}">{{ run.properties }}</td> {# Truncate long properties #}
+    <td style="max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="{{ run.instructions or '' }}">{{ run.instructions or "" }}</td> {# Truncate long instructions #}
     <td>{{ run.error or "" }}</td>
     <td>{{ run.num_items }}</td>
   </tr>
   {% endfor %}
+  </tbody>
 </table>
 </div>
 {% endif %}
