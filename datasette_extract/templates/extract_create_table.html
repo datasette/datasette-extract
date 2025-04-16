@@ -3,6 +3,7 @@
 {% block title %}Extract data and create a new table{% endblock %}
 
 {% block extra_head %}
+<link type="text/css" rel="stylesheet" href="/-/static-plugins/datasette-extract/extract.css">
 <style>
   * {
     box-sizing: border-box;
@@ -175,11 +176,8 @@
 
 {% block content %}
 <div class="extract-container">
-  <div class="form-header">
-    <h1>Extract data and create a new table in {{ database }}</h1>
-  </div>
-
   <form action="{{ request.path }}" method="POST" class="extract-form" enctype="multipart/form-data">
+    <h1>Extract data to create a new table in {{ database }}</h1>
     <div class="form-group">
       <input type="hidden" name="csrftoken" value="{{ csrftoken() }}">
       <label for="table">Table name:</label>
@@ -229,7 +227,7 @@
 
     <h3 class="section-title">Enter Your Data</h3>
     <div class="form-group">
-      <label for="id_content">Paste data here, or drag and drop text or PDF files:</label>
+      <label for="id_content">Paste data here, or drag and drop text files:</label>
       <textarea name="content" id="id_content" style="height: 20em;" placeholder="Paste content here"></textarea>
     </div>
 
@@ -238,7 +236,7 @@
     </div>
 
     <div class="form-group file-upload">
-      <label>Or upload an image:</label>
+      <label>Or upload an image or PDF:</label>
       <input type="file" id="id_image" name="image">
     </div>
 

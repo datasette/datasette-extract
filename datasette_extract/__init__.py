@@ -141,7 +141,6 @@ async def extract_create_table(datasette, request, scope, receive):
     ]
 
     config = get_config(datasette)
-    print("config", config)
     if config.get("models"):
         models = [model for model in models if model["id"] in config["models"]]
 
@@ -363,7 +362,7 @@ async def extract_table_task(
             kwargs["system"] = instructions
         if image_is_provided(image):
             image_bytes = await image.read()
-            kwargs["attachments"] = llm.Attachment(content=image_bytes)
+            kwargs["attachments"] = [llm.Attachment(content=image_bytes)]
         if content:
             kwargs["prompt"] = content
 
