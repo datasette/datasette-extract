@@ -1,0 +1,117 @@
+<style>
+  * {
+    box-sizing: border-box;
+  }
+
+  /* Clean Card Layout Styles - Base Structure */
+  .extract-container {
+    --primary-color: #4a6fa5;
+    --secondary-color: #f8f9fa;
+    --border-radius: 8px;
+    --shadow: 0 2px 10px rgba(0,0,0,0.1);
+    max-width: 1000px;
+    margin: 0 auto;
+    padding: 0 20px;
+  }
+
+  .extract-form {
+    background-color: white;
+    border-radius: var(--border-radius);
+    box-shadow: var(--shadow);
+    padding: 24px;
+    margin-bottom: 30px;
+  }
+
+  .extract-form h1 { /* General H1 styling within the form container */
+     margin-top: 0;
+     color: var(--primary-color);
+     font-size: 1.8em;
+     border-bottom: 1px solid #eee;
+     margin-bottom: 20px;
+     padding-bottom: 15px;
+  }
+
+  /* Common Form Elements */
+  .form-group {
+    margin-bottom: 20px;
+  }
+
+  .extract-form label:not(td > label) { /* Apply base label style EXCEPT for labels directly inside table cells */
+    display: block;
+    font-weight: bold;
+    margin-bottom: 8px;
+    font-family: Helvetica, Arial, sans-serif;
+  }
+
+  .extract-form input[type="text"],
+  .extract-form select,
+  .extract-form textarea {
+    width: 100%;
+    padding: 8px 12px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-size: 16px;
+    font-family: Helvetica, Arial, sans-serif;
+    display: block; /* Ensure selects/inputs take full width consistently */
+  }
+
+  /* Default textarea height, can be overridden inline */
+  .extract-form textarea {
+     height: 10em;
+  }
+
+  .extract-form input[type="submit"] {
+    background-color: var(--primary-color);
+    color: white;
+    border: none;
+    border-radius: 4px;
+    padding: 10px 20px;
+    cursor: pointer;
+    font-size: 16px;
+    font-family: Helvetica, Arial, sans-serif;
+    transition: background-color 0.3s;
+  }
+
+  .extract-form input[type="submit"]:hover {
+    background-color: #395d8e;
+  }
+
+  /* Standard File Upload Area */
+  .file-upload {
+    border: 2px dashed #ddd;
+    padding: 20px;
+    text-align: center;
+    border-radius: var(--border-radius);
+    margin-bottom: 20px; /* Consistent with form-group */
+  }
+  .file-upload label { /* Adjust label within file upload */
+     display: block;
+     font-weight: bold;
+     margin-bottom: 8px;
+     font-family: Helvetica, Arial, sans-serif;
+  }
+  .file-upload input[type="file"] {
+      margin-top: 8px; /* Add some space below the label */
+  }
+
+  /* Standard Processing Message */
+  #processing_message {
+    background-color: #fff8e5;
+    padding: 10px;
+    border-radius: 4px;
+    border-left: 4px solid #ffc107;
+    margin: 15px 0;
+    display: none; /* Hidden by default */
+  }
+  #processing_message strong {
+    color: #c79100; /* Darker yellow/orange for emphasis */
+  }
+
+
+  /* Basic Responsive adjustments */
+  @media (max-width: 768px) {
+    .extract-form {
+      padding: 16px;
+    }
+  }
+</style>

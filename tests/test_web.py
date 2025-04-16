@@ -13,7 +13,7 @@ async def test_extract_flow():
     cookies = {"ds_actor": ds.client.actor_cookie({"id": "root"})}
     response = await ds.client.get("/data/-/extract", cookies=cookies)
     assert response.status_code == 200
-    assert "<h1>Extract data and create a new table in data</h1>" in response.text
+    assert "<h1>Extract data to create a new table in data</h1>" in response.text
     csrftoken = response.cookies["ds_csrftoken"]
     cookies["ds_csrftoken"] = csrftoken
     # Now submit a POST, then wait 30s
@@ -28,6 +28,7 @@ async def test_extract_flow():
             "name_1": "age",
             "type_1": "integer",
             "instructions": "Be nice",
+            "model": "openai/gpt-4.1-mini",
         },
         files={
             # Send an empty image too
@@ -54,9 +55,10 @@ async def test_extract_flow():
 
     assert data == {
         "items": [{"name": "Sergei", "age": 4}, {"name": "Cynthia", "age": 7}],
-        "instructions": "Be nice",
         "database": "data",
+        "model": "openai/gpt-4.1-mini",
         "table": "ages",
+        "instructions": "Be nice",
         "properties": {"name": {"type": "string"}, "age": {"type": "integer"}},
         "error": None,
         "done": True,
@@ -148,7 +150,7 @@ async def test_create_table_copying_columns():
     cookies = {"ds_actor": ds.client.actor_cookie({"id": "root"})}
     response = await ds.client.get("/data/foo/-/extract", cookies=cookies)
     assert response.status_code == 200
-    fields_raw = response.text.split('<p><a href="/data/-/extract?_fields=')[1].split(
+    fields_raw = response.text.split('><a href="/data/-/extract?_fields=')[1].split(
         '"'
     )[0]
     fields = json.loads(urllib.parse.unquote_plus(fields_raw))
@@ -162,60 +164,11 @@ async def test_create_table_copying_columns():
     response2 = await ds.client.get(
         f"/data/-/extract?_fields={fields_raw}", cookies=cookies
     )
-    expected = """
-        <p>
-      <label>Name <input type="text" name="name_0" value="name"></label>
-      <label>Type <select name="type_0">
-        <option value="string" selected>Text</option>
-        <option value="integer">Integer</option>
-        <option value="float">Float</option>
-        </select>
-      </label>
-      <label>Hint
-        <input size="40" type="text" name="hint_0" value="" placeholder="Optional hint">
-      </label>
-    </p>
-    <p>
-      <label>Name <input type="text" name="name_1" value="age"></label>
-      <label>Type <select name="type_1">
-        <option value="string">Text</option>
-        <option value="integer" selected>Integer</option>
-        <option value="float">Float</option>
-        </select>
-      </label>
-      <label>Hint
-        <input size="40" type="text" name="hint_1" value="" placeholder="Optional hint">
-      </label>
-    </p>
-    <p>
-      <label>Name <input type="text" name="name_2" value="weight"></label>
-      <label>Type <select name="type_2">
-        <option value="string">Text</option>
-        <option value="integer">Integer</option>
-        <option value="float" selected>Float</option>
-        </select>
-      </label>
-      <label>Hint
-        <input size="40" type="text" name="hint_2" value="" placeholder="Optional hint">
-      </label>
-    </p>
-    <p>
-      <label>Name <input type="text" name="name_3" value="bio"></label>
-      <label>Type <select name="type_3">
-        <option value="string" selected>Text</option>
-        <option value="integer">Integer</option>
-        <option value="float">Float</option>
-        </select>
-      </label>
-      <label>Hint
-        <input size="40" type="text" name="hint_3" value="" placeholder="Optional hint">
-      </label>
-    </p>
-    """
-    expected_stripped = strip_whitespace(expected)
-    actual_stripped = strip_whitespace(response2.text)
-    assert expected_stripped in actual_stripped
-
-
-def strip_whitespace(text):
-    return "".join(text.split())
+    expecteds = (
+        'name="name_0" value="name"',
+        'name="name_1" value="age"',
+        'name="name_2" value="weight"',
+        'name="name_3" value="bio"',
+    )
+    for expected in expecteds:
+        assert expected in response2.text

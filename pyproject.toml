@@ -9,10 +9,12 @@ classifiers=[
     "Framework :: Datasette",
     "License :: OSI Approved :: Apache Software License"
 ]
-requires-python = ">=3.8"
+requires-python = ">=3.9"
 dependencies = [
     "datasette>=1.0a12",
     "datasette-secrets>=0.1a2",
+    "llm>=0.24",
+    "llm-openai-plugin",
     "sqlite-utils",
     "openai>=1.0",
     "ijson",
@@ -37,6 +39,7 @@ where = ["."]
 
 [tool.pytest.ini_options]
 asyncio_mode = "strict"
+asyncio_default_fixture_loop_scope = "function"
 
 [tool.setuptools.package-data]
 datasette_extract = ["static/*", "templates/*"]

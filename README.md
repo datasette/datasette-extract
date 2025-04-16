@@ -20,7 +20,7 @@ This plugin requires an [OpenAI API key](https://platform.openai.com/api-keys).
 
 You can set this using the `DATASETTE_SECRETS_OPENAI_API_KEY` environment variable, or you can configure the [datasette-secrets](https://github.com/datasette/datasette-secrets) plugin to allow users to enter their own plugin and save it, encrypted, in their database.
 
-Here's how to start using this plugin with that environment variable:
+Here's how to start using Datasette with that environment variable:
 
 ```bash
 DATASETTE_SECRETS_OPENAI_API_KEY="xxx" datasette data.db --root --create
@@ -29,6 +29,18 @@ DATASETTE_SECRETS_OPENAI_API_KEY="xxx" datasette data.db --root --create
 - Replace `xxx` with your OpenAI API key
 - The `--root` flag causes Datasette to output a link that will sign you in as root
 - The `--create` flag will create the `data.db` SQLite database file if it does not exist
+
+If you are using other models from plugins you should consult those LLM plugins for documentation on how to configure their API keys, if they need one.
+
+By default all asyncio and schema supporting LLM models will be provided as options for the user. You can restrict that to a subset of models using the `models` setting:
+
+```yaml
+plugins:
+ datasette-extract:
+  models:
+  - openai/gpt-4.1-nano
+```
+If you only list a single model users will not get an option to select the model when they use the extraction tool.
 
 ## Usage
 
@@ -55,6 +67,14 @@ In order to create tables they also need the `create-table` permission.
 
 To insert rows into an existing table they need `insert-row`.
 
+Run this to grant those permissions to the root user:
+```bash
+datasette . --root \
+  -s permissions.insert-row.id root \
+  -s permissions.create-table.id root \
+  -s permissions.datasette-extract.id root \
+```
+
 ## Development
 
 To set up this plugin locally, first checkout the code. Then create a new virtual environment:
@@ -70,4 +90,14 @@ pip install -e '.[test]'
 To run the tests:
 ```bash
 pytest
+```
+One option to run this in development is to use this recipe:
+```bash
+DATASETTE_SECRETS_OPENAI_API_KEY="$(llm keys get openai)" \
+  datasette . --root --secret 1 \
+  -s permissions.insert-row.id root \
+  -s permissions.create-table.id root \
+  -s permissions.datasette-extract.id root \
+  -s plugins.datasette-extract.models '["openai/gpt-4.1-nano", "openai/gpt-4.1-mini"]' \
+  --internal internal.db --reload
 ```
