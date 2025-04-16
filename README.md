@@ -81,3 +81,13 @@ To run the tests:
 ```bash
 pytest
 ```
+One option to run this in development is to use this recipe:
+```bash
+DATASETTE_SECRETS_OPENAI_API_KEY="$(llm keys get openai)" \
+  datasette . --root --secret 1 \
+  -s permissions.insert-row.id root \
+  -s permissions.create-table.id root \
+  -s permissions.datasette-extract.id root \
+  -s plugins.datasette-extract.models '["openai/gpt-4.1-nano", "openai/gpt-4.1-mini"]' \
+  --internal internal.db --reload
+```
