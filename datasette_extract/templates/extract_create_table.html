@@ -4,70 +4,19 @@
 
 {% block extra_head %}
 <link type="text/css" rel="stylesheet" href="/-/static-plugins/datasette-extract/extract.css">
+{% include "_extract_base_styles.html" %}
 <style>
-  * {
-    box-sizing: border-box;
-  }
-
-  /* Clean Card Layout Styles */
-  .extract-container {
-    --primary-color: #4a6fa5;
-    --secondary-color: #f8f9fa;
-    --border-radius: 8px;
-    --shadow: 0 2px 10px rgba(0,0,0,0.1);
-    max-width: 1000px;
-    margin: 0 auto;
-    padding: 0 20px;
-  }
-
-  .extract-form {
-    background-color: white;
-    border-radius: var(--border-radius);
-    box-shadow: var(--shadow);
-    padding: 24px;
-    margin-bottom: 30px;
-  }
-
-  .form-header {
-    border-bottom: 1px solid #eee;
-    margin-bottom: 20px;
-    padding-bottom: 15px;
-  }
-
-  .form-header h1 {
-    margin-top: 0;
+  /* Specific styles for create_table form */
+  /* H1 handled by base styles now */
+  .extract-form h1 { /* Keep specific h1 style if needed, otherwise remove if base is sufficient */
     color: var(--primary-color);
     font-size: 1.8em;
   }
 
-  .form-group {
-    margin-bottom: 20px;
-  }
-
-  .extract-form label {
-    display: block;
-    font-weight: bold;
-    margin-bottom: 8px;
-    font-family: Helvetica, Arial, sans-serif;
-  }
-
-  .extract-form input[type="text"],
-  .extract-form select {
-    width: 100%;
-    padding: 8px 12px;
-    border: 1px solid #ccc;
-    border-radius: 4px;
-    font-size: 16px;
-    font-family: Helvetica, Arial, sans-serif;
-  }
-
-  .extract-form textarea {
-    width: 100%;
-    padding: 8px 12px;
-    border: 1px solid #ccc;
-    border-radius: 4px;
-    font-size: 16px;
-    font-family: Helvetica, Arial, sans-serif;
+ /* Base styles handle text inputs, selects, textareas */
+  .extract-form textarea#id_content {
+    /* Specific height override */
+    height: 20em;
   }
 
   .field-row {
@@ -88,14 +37,6 @@
 
   .hint-field {
     flex: 3 1 300px;
-  }
-
-  .file-upload {
-    border: 2px dashed #ddd;
-    padding: 20px;
-    text-align: center;
-    border-radius: var(--border-radius);
-    margin-bottom: 20px;
   }
 
   .column-container {
@@ -132,32 +73,10 @@
     background-color: #e9ecef;
   }
 
-  .extract-form input[type="submit"] {
-    background-color: var(--primary-color);
-    color: white;
-    border: none;
-    border-radius: 4px;
-    padding: 10px 20px;
-    cursor: pointer;
-    font-size: 16px;
-    font-family: Helvetica, Arial, sans-serif;
-    transition: background-color 0.3s;
-  }
 
-  .extract-form input[type="submit"]:hover {
-    background-color: #395d8e;
-  }
-
-  #processing_message {
-    background-color: #fff8e5;
-    padding: 10px;
-    border-radius: 4px;
-    border-left: 4px solid #ffc107;
-    margin: 15px 0;
-  }
-
-  /* Responsive adjustments */
+  /* Responsive adjustments for create table specific elements */
   @media (max-width: 768px) {
+     /* Base responsive rules in _extract_base_styles.html */
     .field-row {
       flex-direction: column;
       gap: 10px;
@@ -166,10 +85,6 @@
     .name-field, .type-field, .hint-field {
       flex: 1 1 100%;
     }
-
-    .extract-form {
-      padding: 16px;
-    }
   }
 </style>
 {% endblock %}
@@ -177,6 +92,7 @@
 {% block content %}
 <div class="extract-container">
   <form action="{{ request.path }}" method="POST" class="extract-form" enctype="multipart/form-data">
+    {# Moved h1 inside form to be styled by .extract-form h1 #}
     <h1>Extract data to create a new table in {{ database }}</h1>
     <div class="form-group">
       <input type="hidden" name="csrftoken" value="{{ csrftoken() }}">
@@ -228,19 +144,19 @@
     <h3 class="section-title">Enter Your Data</h3>
     <div class="form-group">
       <label for="id_content">Paste data here, or drag and drop text files:</label>
-      <textarea name="content" id="id_content" style="height: 20em;" placeholder="Paste content here"></textarea>
+      <textarea name="content" id="id_content" placeholder="Paste content here"></textarea> {# Height set via CSS rule #}
     </div>
 
-    <div id="processing_message" style="display: none;">
+    <div id="processing_message"> {# style="display: none;" handled by CSS #}
       <strong>Processing...</strong> This may take a moment.
     </div>
 
-    <div class="form-group file-upload">
+    <div class="form-group file-upload"> {# Using standard file-upload class #}
       <label>Or upload an image or PDF:</label>
       <input type="file" id="id_image" name="image">
     </div>
 
-    <div class="form-group">
+    <div class="form-group"> {# Added form-group wrapper for consistency #}
       <label for="id_instructions">Additional instructions:</label>
       <textarea name="instructions" id="id_instructions" style="height: 5em;" placeholder="Optional additional instructions"></textarea>
     </div>

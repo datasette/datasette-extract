@@ -4,29 +4,14 @@
 
 {% block extra_head %}
 <link type="text/css" rel="stylesheet" href="/-/static-plugins/datasette-extract/extract.css">
+{% include "_extract_base_styles.html" %}
 <style>
-/* Copied basic form group styling from extract_create_table.html for consistency */
-.form-group {
-  margin-bottom: 20px;
-}
-
-label {
-  display: block;
-  font-weight: bold;
-  margin-bottom: 8px;
-  font-family: Helvetica, Arial, sans-serif;
-}
-
-select,
-textarea,
-input[type="text"],
-input[type="submit"] {
-    font-family: Helvetica, Arial, sans-serif;
-}
+/* Specific styles for extract_to_table form */
 
 table.formgrid td {
   white-space: normal;
   padding: 0.2em;
+  vertical-align: middle; /* Align checkbox and label nicely */
 }
 table.formgrid td.checkbox {
   vertical-align: middle;
@@ -41,83 +26,89 @@ table.formgrid td label {
     font-weight: normal; /* Don't need bold here */
     margin-bottom: 0;
 }
-/* Ensure select takes appropriate width */
-.form-group select {
-    width: 100%;
-    padding: 8px 12px;
-    border: 1px solid #ccc;
-    border-radius: 4px;
-    font-size: 16px;
+
+/* Ensure textareas have appropriate height */
+.extract-form textarea#id_content { height: 20em; }
+.extract-form textarea#id_instructions { height: 5em; }
+
+/* Specific responsive rules if needed for formgrid */
+@media (max-width: 768px) {
+  /* Base responsive rules in _extract_base_styles.html */
 }
 </style>
 {% endblock %}
 
 {% block content %}
-<h1>Extract data into {{ database }} / {{ table }}</h1>
+<div class="extract-container">
+  <form action="{{ request.path }}" method="POST" class="extract-form" enctype="multipart/form-data">
+    <h1>Extract data into {{ database }} / {{ table }}</h1>
+    <input type="hidden" name="csrftoken" value="{{ csrftoken() }}">
 
-<form action="{{ request.path }}" method="POST" class="extract-form" enctype="multipart/form-data">
-  <input type="hidden" name="csrftoken" value="{{ csrftoken() }}">
+    <p>Select columns to populate with extracted data:</p>
+    <table class="formgrid">
+    {% for column in columns %}
+      <tr>
+        <td class="checkbox">
+          <input type="checkbox"{% if column.checked %} checked="checked"{% endif %} name="use_{{ column.name }}" id="use_{{ column.name }}">
+        </td>
+        <td>
+          <label for="use_{{ column.name }}">{{ column.name }}</label>
+        </td>
+        <td>
+          <input size="40" type="text" name="hint_{{ column.name }}" value="{{ column.hint }}" placeholder="Optional hint">
+        </td>
+      </tr> {# Closing TR tag was missing, added it #}
+    {% endfor %}
+    </table>
 
-  <p>Select columns to populate with extracted data:</p>
-  <table class="formgrid">
-  {% for column in columns %}
-    <tr>
-      <td class="checkbox">
-        <input type="checkbox"{% if column.checked %} checked="checked"{% endif %} name="use_{{ column.name }}" id="use_{{ column.name }}">
-      </td>
-      <td>
-        <label for="use_{{ column.name }}">{{ column.name }}</label>
-      </td>
-      <td>
-        <input size="40" type="text" name="hint_{{ column.name }}" value="{{ column.hint }}" placeholder="Optional hint">
-      </td>
-    </tr> {# Closing TR tag was missing, added it #}
-  {% endfor %}
-  </table>
-
-  {% if models|length > 1 %}
-  <div class="form-group">
-    <label for="model">Model:</label>
-    <select name="model" id="model">
-      {% for model in models %}
-        <option value="{{ model.id }}">{{ model.name }}</option>
-      {% endfor %}
-    </select>
-  </div>
-  {% else %}
-    {# Ensure models list is not empty before accessing index 0 #}
-    {% if models %}
-      <input type="hidden" name="model" value="{{ models[0].id }}">
+    {% if models|length > 1 %}
+    <div class="form-group">
+      <label for="model">Model:</label>
+      <select name="model" id="model">
+        {% for model in models %}
+          <option value="{{ model.id }}">{{ model.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
     {% else %}
-      <p><strong>Error:</strong> No suitable AI models found or configured.</p>
+      {# Ensure models list is not empty before accessing index 0 #}
+      {% if models %}
+        <input type="hidden" name="model" value="{{ models[0].id }}">
+      {% else %}
+        <p><strong>Error:</strong> No suitable AI models found or configured.</p>
+      {% endif %}
     {% endif %}
-  {% endif %}
 
-  <div class="form-group">
-    <label for="id_content">Paste data here, or drag and drop text or PDF files:</label>
-    <textarea name="content" id="id_content" style="width: 100%; height: 20em;" placeholder="Paste content here"></textarea>
-  </div>
+    <div class="form-group">
+      <label for="id_content">Paste data here, or drag and drop text or PDF files:</label>
+      <textarea name="content" id="id_content" placeholder="Paste content here"></textarea> {# Height set via CSS rule #}
+    </div>
 
-  <p id="processing_message" style="display: none;">Processing...</p>
+    <div id="processing_message"> {# Use standard div, display:none handled by CSS #}
+        <strong>Processing...</strong> This may take a moment.
+    </div>
 
-  <div class="form-group">
-    <label>Or upload an image: <input type="file" id="id_image" name="image"></label>
-  </div>
+    <div class="form-group file-upload"> {# Use standard file-upload structure #}
+      <label>Or upload an image:</label>
+      <input type="file" id="id_image" name="image">
+    </div>
 
-  <div class="form-group">
-    <label for="id_instructions">Additional instructions:</label>
-    <textarea name="instructions" id="id_instructions" style="width: 100%; height: 5em;" placeholder="Optional additional instructions">{{ instructions }}</textarea>
-  </div>
 
-  {# Only show submit if models are available #}
-  {% if models %}
-  <div class="form-group">
-    <input type="submit" value="Extract">
-  </div>
-  {% endif %}
-</form>
+    <div class="form-group">
+      <label for="id_instructions">Additional instructions:</label>
+      <textarea name="instructions" id="id_instructions" placeholder="Optional additional instructions">{{ instructions }}</textarea> {# Height set via CSS rule #}
+    </div>
 
-<p><a href="{{ duplicate_url }}">Duplicate these columns to a new table</a></p>
+    {# Only show submit if models are available #}
+    {% if models %}
+    <div class="form-group">
+      <input type="submit" value="Extract">
+    </div>
+    {% endif %}
+  </form>
+</div> {# End extract-container #}
+
+<p style="margin-left: 20px;"><a href="{{ duplicate_url }}">Duplicate these columns to a new table</a></p> {# Keep outside the card #}
 
 {% include "_extract_drop_handler.html" %}
 
@@ -125,7 +116,7 @@ table.formgrid td label {
 <h2>Previous extraction tasks</h2>
 <div style="overflow-x: auto;"> {# Changed overflow to overflow-x #}
 <table>
-  <thead> {# Added thead for better structure #}
+  <thead>
     <tr>
       <th>ID</th>
       <th>Created</th>
