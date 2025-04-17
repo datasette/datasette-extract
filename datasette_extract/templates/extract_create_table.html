@@ -126,7 +126,7 @@
             <select name="type_{{ field.index }}">
               <option value="string"{% if field.type == "str" %} selected{% endif %}>Text</option>
               <option value="integer"{% if field.type == "int" %} selected{% endif %}>Integer</option>
-              <option value="float"{% if field.type == "float" %} selected{% endif %}>Float</option>
+              <option value="number"{% if field.type == "float" %} selected{% endif %}>Float</option>
             </select>
           </div>
           <div class="hint-field">
@@ -188,7 +188,7 @@ document.getElementById('add-column-btn').addEventListener('click', function() {
       <select name="type_${fieldCount}">
         <option value="string">Text</option>
         <option value="integer">Integer</option>
-        <option value="float">Float</option>
+        <option value="number">Float</option>
       </select>
     </div>
     <div class="hint-field">

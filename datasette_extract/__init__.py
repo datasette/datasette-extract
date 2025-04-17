@@ -315,7 +315,7 @@ async def extract_table_task(
 ):
     # This task runs in the background and writes to the table as it extracts rows
     events = ijson.sendable_list()
-    coro = ijson.items_coro(events, "items.item")
+    coro = ijson.items_coro(events, "items.item", use_float=True)
     seen_events = set()
     items = []
 
