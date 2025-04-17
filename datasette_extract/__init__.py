@@ -437,6 +437,7 @@ async def extract_table_task(
                     ]
                     if unseen_events:
                         for event in unseen_events:
+                            event = remove_null_bytes(event)
                             seen_events.add(json.dumps(event))
                             items.append(event)
                             await db.execute_write_fn(make_row_writer(event))
@@ -582,3 +583,17 @@ def table_actions(datasette, actor, database, table):
         ]
 
     return inner
+
+
+def remove_null_bytes(data: dict) -> dict:
+    """
+    Recursively removes null bytes (u0000) from string values in a dictionary with JSON semantics.
+    """
+    if isinstance(data, dict):
+        return {key: remove_null_bytes(value) for key, value in data.items()}
+    elif isinstance(data, list):
+        return [remove_null_bytes(item) for item in data]
+    elif isinstance(data, str):
+        return data.replace("\u0000", "")
+    else:
+        return data

@@ -1,5 +1,6 @@
 import asyncio
 from datasette.app import Datasette
+from datasette_extract import remove_null_bytes
 import json
 import pytest
 import urllib
@@ -172,3 +173,21 @@ async def test_create_table_copying_columns():
     )
     for expected in expecteds:
         assert expected in response2.text
+
+
+@pytest.mark.parametrize(
+    "input,expected",
+    (
+        # Input is always a JSON-style dict
+        ({"a": "b"}, {"a": "b"}),
+        ({"a": None}, {"a": None}),
+        ({"a": "\x00"}, {"a": ""}),
+        ({"a": "\x00\x00"}, {"a": ""}),
+        ({"a": "\x00\x01"}, {"a": "\x01"}),
+        # Nested list
+        ({"a": ["\x00", "\x01"]}, {"a": ["", "\x01"]}),
+    ),
+)
+def test_remove_null_bytes(input, expected):
+    result = remove_null_bytes(input)
+    assert result == expected
