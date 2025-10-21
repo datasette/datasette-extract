@@ -1,6 +1,6 @@
 [project]
 name = "datasette-extract"
-version = "0.1a10"
+version = "0.1a11"
 description = "Import unstructured data (text and images) into structured tables"
 readme = "README.md"
 authors = [{name = "Simon Willison"}]
@@ -11,7 +11,7 @@ classifiers=[
 ]
 requires-python = ">=3.9"
 dependencies = [
-    "datasette>=1.0a12",
+    "datasette==1.0a19",
     "datasette-secrets>=0.1a2",
     "llm>=0.24",
     "llm-openai-plugin",
