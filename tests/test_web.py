@@ -10,6 +10,7 @@ import urllib
 @pytest.mark.asyncio
 async def test_extract_flow():
     ds = Datasette()
+    ds.root_enabled = True
     ds.add_memory_database("data")
     cookies = {"ds_actor": ds.client.actor_cookie({"id": "root"})}
     response = await ds.client.get("/data/-/extract", cookies=cookies)
@@ -86,14 +87,17 @@ async def test_permissions(actor, path, should_allow):
     ds = Datasette(
         config={
             "permissions": {
-                "insert-row": {"id": ["allowed_all", "no_create"]},
-                "create-table": {"id": ["allowed_all", "no_extract", "no_insert"]},
+                "insert-row": {"id": ["allowed_all", "no_create", "root"]},
+                "create-table": {
+                    "id": ["allowed_all", "no_extract", "no_insert", "root"]
+                },
                 "datasette-extract": {
                     "id": ["allowed_all", "no_insert", "no_create", "root"]
                 },
             }
         }
     )
+    ds.root_enabled = True
     db = ds.add_memory_database("test")
     await db.execute_write("create table if not exists foo (id integer primary key)")
     cookies = {"ds_actor": ds.client.actor_cookie({"id": actor})}
@@ -129,6 +133,7 @@ async def test_action_menus_require_api_key(monkeypatch, path, has_env_variable)
             }
         }
     )
+    ds.root_enabled = True
     db = ds.add_memory_database("test2")
     await db.execute_write("create table if not exists foo (id integer primary key)")
     cookies = {"ds_actor": ds.client.actor_cookie({"id": "root"})}
@@ -144,6 +149,7 @@ async def test_action_menus_require_api_key(monkeypatch, path, has_env_variable)
 @pytest.mark.asyncio
 async def test_create_table_copying_columns():
     ds = Datasette()
+    ds.root_enabled = True
     data = ds.add_memory_database("data")
     await data.execute_write(
         "create table foo (name text, age integer, weight float, bio text)"

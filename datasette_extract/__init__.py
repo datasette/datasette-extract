@@ -1,6 +1,8 @@
 import asyncio
 import llm
-from datasette import hookimpl, Response, NotFound, Permission, Forbidden
+from datasette import hookimpl, Response, NotFound, Forbidden
+from datasette.permissions import Action
+from datasette.resources import DatabaseResource, TableResource
 from datasette_secrets import Secret, get_secret
 from datetime import datetime, timezone
 from sqlite_utils import Database
@@ -12,15 +14,11 @@ import urllib
 
 
 @hookimpl
-def register_permissions(datasette):
+def register_actions(datasette):
     return [
-        Permission(
+        Action(
             name="datasette-extract",
-            abbr=None,
             description="Use the extract tool to populate tables",
-            takes_database=False,
-            takes_resource=False,
-            default=False,
         )
     ]
 
@@ -36,12 +34,6 @@ def register_secrets():
     ]
 
 
-@hookimpl
-def permission_allowed(action, actor):
-    if action == "datasette-extract" and actor and actor.get("id") == "root":
-        return True
-
-
 def get_config(datasette):
     return datasette.plugin_config("datasette-extract") or {}
 
@@ -49,21 +41,25 @@ def get_config(datasette):
 async def can_extract(datasette, actor, database_name, to_table=None):
     if actor is None:
         return False
-    reply_from_that = await datasette.permission_allowed(actor, "datasette-extract")
+    reply_from_that = await datasette.allowed(actor=actor, action="datasette-extract")
     if not reply_from_that:
         return False
     if not to_table:
         # Need create-table for database
-        can_create_table = await datasette.permission_allowed(
-            actor, "create-table", resource=database_name
+        can_create_table = await datasette.allowed(
+            actor=actor,
+            action="create-table",
+            resource=DatabaseResource(database_name),
         )
         if not can_create_table:
             return False
         return True
     else:
         # Need insert-row for that table
-        return await datasette.permission_allowed(
-            actor, "insert-row", resource=(database_name, to_table)
+        return await datasette.allowed(
+            actor=actor,
+            action="insert-row",
+            resource=TableResource(database_name, to_table),
         )
 
 
