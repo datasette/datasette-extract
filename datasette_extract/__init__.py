@@ -23,15 +23,52 @@ def register_actions(datasette):
     ]
 
 
+# Metadata for known API key environment variables
+API_KEY_METADATA = {
+    "OPENAI_API_KEY": {
+        "obtain_label": "Get an OpenAI API key",
+        "obtain_url": "https://platform.openai.com/api-keys",
+    },
+    "ANTHROPIC_API_KEY": {
+        "obtain_label": "Get an Anthropic API key",
+        "obtain_url": "https://console.anthropic.com/",
+    },
+    "GEMINI_API_KEY": {
+        "obtain_label": "Get a Gemini API key",
+        "obtain_url": "https://aistudio.google.com/apikey",
+    },
+}
+
+
 @hookimpl
 def register_secrets():
-    return [
-        Secret(
-            name="OPENAI_API_KEY",
-            obtain_label="Get an OpenAI API key",
-            obtain_url="https://platform.openai.com/api-keys",
-        ),
-    ]
+    """
+    Dynamically register secrets for all schema-supporting async models.
+    Introspects models to find their key_env_var and deduplicates them.
+    """
+    env_vars = set()
+
+    # Collect all unique key_env_var values from schema-supporting async models
+    for model in llm.get_async_models():
+        if model.supports_schema:
+            key_env_var = getattr(model, "key_env_var", None)
+            if key_env_var:
+                env_vars.add(key_env_var)
+
+    # Create Secret objects for each unique environment variable
+    secrets = []
+    for env_var in sorted(env_vars):  # Sort for consistency
+        metadata = API_KEY_METADATA.get(env_var, {})
+        secret_kwargs = {"name": env_var}
+
+        if "obtain_label" in metadata:
+            secret_kwargs["obtain_label"] = metadata["obtain_label"]
+        if "obtain_url" in metadata:
+            secret_kwargs["obtain_url"] = metadata["obtain_url"]
+
+        secrets.append(Secret(**secret_kwargs))
+
+    return secrets
 
 
 def get_config(datasette):
@@ -65,7 +102,7 @@ async def can_extract(datasette, actor, database_name, to_table=None):
 
 def image_is_provided(image):
     # UploadFile(filename='', size=0, headers=Headers...
-    return bool(image.size)
+    return image and bool(image.size)
 
 
 async def extract_create_table(datasette, request, scope, receive):
@@ -130,15 +167,11 @@ async def extract_create_table(datasette, request, scope, receive):
     if not fields:
         fields = [{"index": i} for i in range(10)]
 
+    # Get available models (those with configured API keys)
+    available_model_objs = await _get_available_models(datasette)
     models = [
-        {"id": model.model_id, "name": str(model)}
-        for model in llm.get_async_models()
-        if model.supports_schema
+        {"id": model.model_id, "name": str(model)} for model in available_model_objs
     ]
-
-    config = get_config(datasette)
-    if config.get("models"):
-        models = [model for model in models if model["id"] in config["models"]]
 
     return Response.html(
         await datasette.render_template(
@@ -270,15 +303,11 @@ async def extract_to_table(datasette, request, scope, receive):
         )
     )
 
-    # Fetch models for the template (copied from extract_create_table)
+    # Get available models (those with configured API keys)
+    available_model_objs = await _get_available_models(datasette)
     models = [
-        {"id": model.model_id, "name": str(model)}
-        for model in llm.get_async_models()
-        if model.supports_schema
+        {"id": model.model_id, "name": str(model)} for model in available_model_objs
     ]
-    config = get_config(datasette)
-    if config.get("models"):
-        models = [model for model in models if model["id"] in config["models"]]
 
     return Response.html(
         await datasette.render_template(
@@ -545,10 +574,40 @@ def get_type(type_):
         return "string"
 
 
+async def _get_available_models(datasette):
+    """
+    Get list of schema-capable async models that have their API keys configured.
+    Returns list of model objects.
+    """
+    config = get_config(datasette)
+    available_models = []
+
+    for model in llm.get_async_models():
+        if not model.supports_schema:
+            continue
+
+        # Check if this model is in the allowed list (if configured)
+        if config.get("models") and model.model_id not in config["models"]:
+            continue
+
+        # Check if the model requires an API key and if it's configured
+        key_env_var = getattr(model, "key_env_var", None)
+        if key_env_var:
+            # Model requires a key - check if it's configured
+            if await get_secret(datasette, key_env_var):
+                available_models.append(model)
+        else:
+            # Model doesn't require a key (e.g., local models)
+            available_models.append(model)
+
+    return available_models
+
+
 @hookimpl
 def database_actions(datasette, actor, database):
     async def inner():
-        if not await get_secret(datasette, "OPENAI_API_KEY"):
+        available_models = await _get_available_models(datasette)
+        if not available_models:
             return
         if not await can_extract(datasette, actor, database):
             return
@@ -566,7 +625,8 @@ def database_actions(datasette, actor, database):
 @hookimpl
 def table_actions(datasette, actor, database, table):
     async def inner():
-        if not await get_secret(datasette, "OPENAI_API_KEY"):
+        available_models = await _get_available_models(datasette)
+        if not available_models:
             return
         if not await can_extract(datasette, actor, database, table):
             return
