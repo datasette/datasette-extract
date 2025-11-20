@@ -30,11 +30,7 @@ async def test_extract_flow():
             "name_1": "age",
             "type_1": "integer",
             "instructions": "Be nice",
-            "model": "openai/gpt-4.1-mini",
-        },
-        files={
-            # Send an empty image too
-            "image": b""
+            "model": "gpt-4.1-mini",
         },
         cookies=cookies,
     )
@@ -58,7 +54,7 @@ async def test_extract_flow():
     assert data == {
         "items": [{"name": "Sergei", "age": 4}, {"name": "Cynthia", "age": 7}],
         "database": "data",
-        "model": "openai/gpt-4.1-mini",
+        "model": "gpt-4.1-mini",
         "table": "ages",
         "instructions": "Be nice",
         "properties": {"name": {"type": "string"}, "age": {"type": "integer"}},
