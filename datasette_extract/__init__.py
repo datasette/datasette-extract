@@ -1,5 +1,4 @@
 import asyncio
-import llm
 from datasette import hookimpl, Response, NotFound, Forbidden
 from datasette.permissions import Action
 from datasette.resources import DatabaseResource, TableResource
@@ -9,8 +8,11 @@ from sqlite_utils import Database
 from starlette.requests import Request as StarletteRequest
 import ijson
 import json
+from llm import Attachment
 import ulid
 import urllib
+
+__all__ = ("remove_null_bytes",)
 
 
 @hookimpl
@@ -41,7 +43,7 @@ API_KEY_METADATA = {
 
 
 @hookimpl
-def register_secrets():
+def register_secrets(datasette):
     """
     Dynamically register secrets for all schema-supporting async models.
     Introspects models to find their key_env_var and deduplicates them.
@@ -49,6 +51,9 @@ def register_secrets():
     env_vars = set()
 
     # Collect all unique key_env_var values from schema-supporting async models
+    from datasette_llm_accountant import LlmWrapper
+
+    llm = LlmWrapper(datasette)
     for model in llm.get_async_models():
         if model.supports_schema:
             key_env_var = getattr(model, "key_env_var", None)
@@ -424,17 +429,21 @@ async def extract_table_task(
         return _write
 
     error = None
+    from datasette_llm_accountant import LlmWrapper
+
+    llm = LlmWrapper(datasette)
 
     try:
         model = llm.get_async_model(model_id)
+        prompt = None
         kwargs = {}
         if instructions:
             kwargs["system"] = instructions
         if image_is_provided(image):
             image_bytes = await image.read()
-            kwargs["attachments"] = [llm.Attachment(content=image_bytes)]
+            kwargs["attachments"] = [Attachment(content=image_bytes)]
         if content:
-            kwargs["prompt"] = content
+            prompt = content
 
         kwargs["schema"] = {
             "type": "object",
@@ -452,7 +461,7 @@ async def extract_table_task(
             "required": ["items"],
         }
 
-        async for chunk in model.prompt(**kwargs):
+        async for chunk in await model.prompt(prompt, **kwargs):
             if chunk:
                 coro.send(chunk.encode("utf-8"))
                 if events:
@@ -581,6 +590,9 @@ async def _get_available_models(datasette):
     """
     config = get_config(datasette)
     available_models = []
+    from datasette_llm_accountant import LlmWrapper
+
+    llm = LlmWrapper(datasette)
 
     for model in llm.get_async_models():
         if not model.supports_schema:
