@@ -29,8 +29,8 @@ CI = "https://github.com/datasette/datasette-extract/actions"
 [project.entry-points.datasette]
 extract = "datasette_extract"
 
-[project.optional-dependencies]
-test = ["pytest", "pytest-asyncio", "pytest-recording"]
+[dependency-groups]
+dev = ["pytest", "pytest-asyncio", "pytest-recording"]
 
 [tool.setuptools.packages.find]
 where = ["."]

@@ -118,24 +118,15 @@ To insert rows into an existing table they need `insert-row`.
 
 ## Development
 
-To set up this plugin locally, first checkout the code. Then create a new virtual environment:
+The recommended way to develop this plugin uses [uv](https://github.com/astral-sh/uv). To run the tests:
 ```bash
 cd datasette-extract
-python3 -m venv venv
-source venv/bin/activate
+uv run pytest
 ```
-Now install the dependencies and test dependencies:
-```bash
-pip install -e '.[test]'
-```
-To run the tests:
-```bash
-pytest
-```
-To run this in development start Datasette with the appropriate API key:
+To run a development server with an OpenAI API key (pulled from the LLM key store):
 ```bash
 DATASETTE_SECRETS_OPENAI_API_KEY="$(llm keys get openai)" \
-  datasette . --root --secret 1 \
+  uv run datasette data.db --create --root --secret 1 \
   -s plugins.datasette-extract.models '["gpt-4o-mini"]' \
   --internal internal.db --reload
 ```
