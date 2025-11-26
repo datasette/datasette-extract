@@ -17,7 +17,7 @@ dependencies = [
     "ijson",
     "python-ulid",
     "starlette",
-    "datasette-llm-accountant",
+    "datasette-llm-accountant>=0.1a1",
 ]
 
 [project.urls]
@@ -41,9 +41,6 @@ asyncio_default_fixture_loop_scope = "function"
 
 [tool.uv]
 package = true
-
-[tool.uv.sources]
-datasette-llm-accountant = { url = "https://github.com/datasette/datasette-llm-accountant/archive/refs/heads/compat.zip" }
 
 [tool.setuptools.package-data]
 datasette_extract = ["static/*", "templates/*"]
