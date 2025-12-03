@@ -31,9 +31,6 @@ CI = "https://github.com/datasette/datasette-extract/actions"
 [project.entry-points.datasette]
 extract = "datasette_extract"
 
-[tool.setuptools.packages.find]
-where = ["."]
-
 [tool.pytest.ini_options]
 asyncio_mode = "strict"
 asyncio_default_fixture_loop_scope = "function"
