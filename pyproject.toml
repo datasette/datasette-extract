@@ -19,6 +19,8 @@ dependencies = [
     "starlette",
     "datasette-llm-accountant>=0.1a1",
 ]
+[dependency-groups]
+dev = ["pytest", "pytest-asyncio", "pytest-recording"]
 
 [project.urls]
 Homepage = "https://github.com/datasette/datasette-extract"
@@ -28,9 +30,6 @@ CI = "https://github.com/datasette/datasette-extract/actions"
 
 [project.entry-points.datasette]
 extract = "datasette_extract"
-
-[dependency-groups]
-dev = ["pytest", "pytest-asyncio", "pytest-recording"]
 
 [tool.setuptools.packages.find]
 where = ["."]
