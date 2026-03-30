@@ -2,7 +2,6 @@ import asyncio
 from datasette import hookimpl, Response, NotFound, Forbidden
 from datasette.permissions import Action
 from datasette.resources import DatabaseResource, TableResource
-from datasette_secrets import Secret, get_secret
 from datetime import datetime, timezone
 from sqlite_utils import Database
 from starlette.requests import Request as StarletteRequest
@@ -13,6 +12,8 @@ import ulid
 import urllib
 
 __all__ = ("remove_null_bytes",)
+
+PURPOSE = "extract"
 
 
 @hookimpl
@@ -25,55 +26,16 @@ def register_actions(datasette):
     ]
 
 
-# Metadata for known API key environment variables
-API_KEY_METADATA = {
-    "OPENAI_API_KEY": {
-        "obtain_label": "Get an OpenAI API key",
-        "obtain_url": "https://platform.openai.com/api-keys",
-    },
-    "ANTHROPIC_API_KEY": {
-        "obtain_label": "Get an Anthropic API key",
-        "obtain_url": "https://console.anthropic.com/",
-    },
-    "GEMINI_API_KEY": {
-        "obtain_label": "Get a Gemini API key",
-        "obtain_url": "https://aistudio.google.com/apikey",
-    },
-}
-
-
 @hookimpl
-def register_secrets(datasette):
-    """
-    Dynamically register secrets for all schema-supporting async models.
-    Introspects models to find their key_env_var and deduplicates them.
-    """
-    env_vars = set()
+def register_llm_purposes(datasette):
+    from datasette_llm import Purpose
 
-    # Collect all unique key_env_var values from schema-supporting async models
-    from datasette_llm_accountant import LlmWrapper
-
-    llm = LlmWrapper(datasette)
-    for model in llm.get_async_models():
-        if model.supports_schema:
-            key_env_var = getattr(model, "key_env_var", None)
-            if key_env_var:
-                env_vars.add(key_env_var)
-
-    # Create Secret objects for each unique environment variable
-    secrets = []
-    for env_var in sorted(env_vars):  # Sort for consistency
-        metadata = API_KEY_METADATA.get(env_var, {})
-        secret_kwargs = {"name": env_var}
-
-        if "obtain_label" in metadata:
-            secret_kwargs["obtain_label"] = metadata["obtain_label"]
-        if "obtain_url" in metadata:
-            secret_kwargs["obtain_url"] = metadata["obtain_url"]
-
-        secrets.append(Secret(**secret_kwargs))
-
-    return secrets
+    return [
+        Purpose(
+            name=PURPOSE,
+            description="Extract structured data from text and images into tables",
+        )
+    ]
 
 
 def get_config(datasette):
@@ -429,12 +391,12 @@ async def extract_table_task(
         return _write
 
     error = None
-    from datasette_llm_accountant import LlmWrapper
+    from datasette_llm import LLM
 
-    llm = LlmWrapper(datasette)
+    llm = LLM(datasette)
 
     try:
-        model = llm.get_async_model(model_id)
+        model = await llm.model(model_id, purpose=PURPOSE)
         prompt = None
         kwargs = {}
         if instructions:
@@ -444,6 +406,9 @@ async def extract_table_task(
             kwargs["attachments"] = [Attachment(content=image_bytes)]
         if content:
             prompt = content
+        else:
+            # Anthropic models require non-whitespace text in the message
+            prompt = "extract"
 
         kwargs["schema"] = {
             "type": "object",
@@ -589,28 +554,21 @@ async def _get_available_models(datasette):
     Returns list of model objects.
     """
     config = get_config(datasette)
+    from datasette_llm import LLM
+
+    llm = LLM(datasette)
+    all_models = await llm.models(purpose=PURPOSE)
+
     available_models = []
-    from datasette_llm_accountant import LlmWrapper
-
-    llm = LlmWrapper(datasette)
-
-    for model in llm.get_async_models():
-        if not model.supports_schema:
+    for model in all_models:
+        if not getattr(model, "supports_schema", False):
             continue
 
         # Check if this model is in the allowed list (if configured)
         if config.get("models") and model.model_id not in config["models"]:
             continue
 
-        # Check if the model requires an API key and if it's configured
-        key_env_var = getattr(model, "key_env_var", None)
-        if key_env_var:
-            # Model requires a key - check if it's configured
-            if await get_secret(datasette, key_env_var):
-                available_models.append(model)
-        else:
-            # Model doesn't require a key (e.g., local models)
-            available_models.append(model)
+        available_models.append(model)
 
     return available_models
 
