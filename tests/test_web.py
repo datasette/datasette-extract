@@ -5,6 +5,7 @@ import json
 import pytest
 from unittest.mock import AsyncMock, patch
 import urllib
+from io import BytesIO
 
 
 @pytest.mark.vcr(ignore_localhost=True)
@@ -247,3 +248,58 @@ async def test_blank_prompt_when_no_content():
         await asyncio.sleep(0.5)
 
     assert captured_prompts == ["extract"]
+
+
+@pytest.mark.asyncio
+async def test_image_upload():
+    """Uploading an image should not return 'No content provided'."""
+    ds = Datasette()
+    ds.root_enabled = True
+    ds.add_memory_database("data")
+    cookies = {"ds_actor": ds.client.actor_cookie({"id": "root"})}
+    response = await ds.client.get("/data/-/extract", cookies=cookies)
+    csrftoken = response.cookies["ds_csrftoken"]
+    cookies["ds_csrftoken"] = csrftoken
+
+    # Create a minimal JPEG-like file
+    fake_image = BytesIO(b"\xff\xd8\xff\xe0" + b"\x00" * 100)
+
+    captured_kwargs = []
+
+    async def fake_prompt(prompt_text, **kwargs):
+        captured_kwargs.append(kwargs)
+        mock_response = AsyncMock()
+        mock_response.__aiter__ = lambda self: aiter_empty()
+        return mock_response
+
+    async def aiter_empty():
+        return
+        yield
+
+    with patch("datasette_llm.LLM.model") as mock_model:
+        wrapped = AsyncMock()
+        wrapped.prompt = fake_prompt
+        mock_model.return_value = wrapped
+
+        post_response = await ds.client.post(
+            "/data/-/extract",
+            data={
+                "table": "test_table",
+                "content": "",
+                "csrftoken": csrftoken,
+                "name_0": "name",
+                "type_0": "string",
+                "model": "gpt-4.1-mini",
+            },
+            files={"image": ("test.jpg", fake_image, "image/jpeg")},
+            cookies=cookies,
+        )
+        assert (
+            post_response.status_code == 302
+        ), f"Expected redirect but got {post_response.status_code}: {post_response.text}"
+
+        await asyncio.sleep(0.5)
+
+    # Should have received an attachment
+    assert len(captured_kwargs) == 1
+    assert "attachments" in captured_kwargs[0]

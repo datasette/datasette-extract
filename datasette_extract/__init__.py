@@ -4,7 +4,6 @@ from datasette.permissions import Action
 from datasette.resources import DatabaseResource, TableResource
 from datetime import datetime, timezone
 from sqlite_utils import Database
-from starlette.requests import Request as StarletteRequest
 import ijson
 import json
 from llm import Attachment
@@ -72,7 +71,7 @@ def image_is_provided(image):
     return image and bool(image.size)
 
 
-async def extract_create_table(datasette, request, scope, receive):
+async def extract_create_table(datasette, request):
     database = request.url_vars["database"]
     try:
         datasette.get_database(database)
@@ -83,8 +82,7 @@ async def extract_create_table(datasette, request, scope, receive):
         raise Forbidden("Permission denied to extract data")
 
     if request.method == "POST":
-        starlette_request = StarletteRequest(scope, receive)
-        post_vars = await starlette_request.form()
+        post_vars = await request.form(files=True)
         content = (post_vars.get("content") or "").strip()
         image = post_vars.get("image") or ""
         instructions = post_vars.get("instructions") or ""
@@ -153,7 +151,7 @@ async def extract_create_table(datasette, request, scope, receive):
     )
 
 
-async def extract_to_table(datasette, request, scope, receive):
+async def extract_to_table(datasette, request):
     database = request.url_vars["database"]
     table = request.url_vars["table"]
     # Do they exist?
@@ -172,8 +170,7 @@ async def extract_to_table(datasette, request, scope, receive):
     schema = await db.execute_fn(lambda conn: Database(conn)[table].columns_dict)
 
     if request.method == "POST":
-        starlette_request = StarletteRequest(scope, receive)
-        post_vars = await starlette_request.form()
+        post_vars = await request.form(files=True)
 
         # We only use columns that have their use_{colname} set
         use_columns = [
