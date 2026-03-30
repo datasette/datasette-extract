@@ -17,10 +17,10 @@ dependencies = [
     "ijson",
     "python-ulid",
     "starlette",
-    "datasette-llm-accountant>=0.1a1",
+    "datasette-llm>=0.1a3",
 ]
 [dependency-groups]
-dev = ["pytest", "pytest-asyncio", "pytest-recording"]
+dev = ["pytest", "pytest-asyncio", "pytest-recording", "llm-echo"]
 
 [project.urls]
 Homepage = "https://github.com/datasette/datasette-extract"

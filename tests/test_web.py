@@ -3,6 +3,7 @@ from datasette.app import Datasette
 from datasette_extract import remove_null_bytes
 import json
 import pytest
+from unittest.mock import AsyncMock, patch
 import urllib
 
 
@@ -122,6 +123,9 @@ async def test_permissions(actor, path, should_allow):
 async def test_action_menus_require_api_key(monkeypatch, path, has_env_variable):
     if not has_env_variable:
         monkeypatch.delenv("DATASETTE_SECRETS_OPENAI_API_KEY")
+        monkeypatch.delenv("OPENAI_API_KEY")
+        # Also prevent llm from finding keys via its keys.json store
+        monkeypatch.setattr("llm.get_key", lambda **kwargs: None)
     ds = Datasette(
         config={
             "permissions": {
@@ -193,3 +197,53 @@ async def test_create_table_copying_columns():
 def test_remove_null_bytes(input, expected):
     result = remove_null_bytes(input)
     assert result == expected
+
+
+@pytest.mark.asyncio
+async def test_blank_prompt_when_no_content():
+    """When no content or image is provided, a blank space should be used as the prompt."""
+    ds = Datasette()
+    ds.root_enabled = True
+    ds.add_memory_database("data")
+    cookies = {"ds_actor": ds.client.actor_cookie({"id": "root"})}
+    response = await ds.client.get("/data/-/extract", cookies=cookies)
+    csrftoken = response.cookies["ds_csrftoken"]
+    cookies["ds_csrftoken"] = csrftoken
+
+    captured_prompts = []
+    original_prompt = None
+
+    async def fake_prompt(prompt_text, **kwargs):
+        captured_prompts.append(prompt_text)
+        mock_response = AsyncMock()
+        mock_response.__aiter__ = lambda self: aiter_empty()
+        return mock_response
+
+    async def aiter_empty():
+        return
+        yield
+
+    with patch("datasette_llm.LLM.model") as mock_model:
+        wrapped = AsyncMock()
+        wrapped.prompt = fake_prompt
+        mock_model.return_value = wrapped
+
+        post_response = await ds.client.post(
+            "/data/-/extract",
+            data={
+                "table": "test_table",
+                "content": "",
+                "csrftoken": csrftoken,
+                "name_0": "name",
+                "type_0": "string",
+                "instructions": "Extract names",
+                "model": "gpt-4.1-mini",
+            },
+            cookies=cookies,
+        )
+        assert post_response.status_code == 302
+
+        # Wait for the background task to run
+        await asyncio.sleep(0.5)
+
+    assert captured_prompts == ["extract"]
